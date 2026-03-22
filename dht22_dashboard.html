@@ -80,7 +80,7 @@
         </div>
     </div>
     <!-- Sensor Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 mb-5">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4 mb-5">
         <div class="bg-white rounded-xl shadow-md p-4 border-l-4 border-red-500 hover:shadow-lg transition">
             <div class="flex items-center justify-between"><div class="flex items-center"><div class="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center mr-2 flex-shrink-0"><i class="fas fa-thermometer-half text-red-600 text-sm"></i></div><div><h3 class="font-semibold text-sm text-gray-700">Temperature</h3><p class="text-xs text-gray-500">DHT22 Sensor</p></div></div><div id="temp-icon" class="text-xl flex-shrink-0">🌡️</div></div>
             <div class="mt-2 flex items-center justify-between"><span class="text-xs text-gray-600">Current:</span><span id="temperature-display" class="text-base font-bold text-gray-800">-- °C</span></div>
@@ -90,6 +90,23 @@
             <div class="flex items-center justify-between"><div class="flex items-center"><div class="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center mr-2 flex-shrink-0"><i class="fas fa-tint text-blue-600 text-sm"></i></div><div><h3 class="font-semibold text-sm text-gray-700">Humidity</h3><p class="text-xs text-gray-500">DHT22 Sensor</p></div></div><div id="hum-icon" class="text-xl flex-shrink-0">💧</div></div>
             <div class="mt-2 flex items-center justify-between"><span class="text-xs text-gray-600">Current:</span><span id="humidity-display" class="text-base font-bold text-gray-800">-- %</span></div>
             <div class="mt-1 flex items-center justify-between"><span class="text-xs text-gray-600">Status:</span><span id="hum-status" class="text-xs font-semibold text-gray-700 bg-gray-100 px-2 py-0.5 rounded-full">--</span></div>
+        </div>
+        <!-- Weather Panel -->
+        <div class="bg-white rounded-xl shadow-md p-4 border-l-4 border-amber-500 hover:shadow-lg transition">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center"><div class="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center mr-2 flex-shrink-0"><i class="fas fa-cloud-sun text-amber-600 text-sm"></i></div><div><h3 class="font-semibold text-sm text-gray-700">Weather</h3><p class="text-xs text-gray-500" id="weather-city">Not configured</p></div></div>
+                <div class="flex items-center gap-1"><img id="weather-icon" src="" alt="" class="w-8 h-8 hidden"><button onclick="openWeatherSettings()" class="p-1 text-gray-400 hover:text-amber-600 transition" title="Weather settings"><i class="fas fa-cog text-xs"></i></button></div>
+            </div>
+            <div class="mt-2 grid grid-cols-2 gap-1 text-xs">
+                <div class="flex justify-between"><span class="text-gray-500">Temp:</span><span id="weather-temp" class="font-bold text-amber-700">--</span></div>
+                <div class="flex justify-between"><span class="text-gray-500">Humidity:</span><span id="weather-hum" class="font-bold text-blue-600">--</span></div>
+                <div class="flex justify-between"><span class="text-gray-500">Feels:</span><span id="weather-feels" class="font-bold text-gray-700">--</span></div>
+                <div class="flex justify-between"><span class="text-gray-500">Wind:</span><span id="weather-wind" class="font-bold text-gray-700">--</span></div>
+            </div>
+            <div class="mt-1 flex items-center justify-between">
+                <span id="weather-desc" class="text-xs text-gray-500 italic">--</span>
+                <span id="weather-updated" class="text-xs text-gray-300">--</span>
+            </div>
         </div>
     </div>
     <!-- Stat Cards: Min/Max -->
@@ -102,10 +119,13 @@
     <!-- Analytics -->
     <div class="bg-white rounded-xl shadow-lg p-4 md:p-5 mb-5">
         <div class="flex flex-col md:flex-row md:items-center justify-between mb-4 border-b pb-3 gap-2">
-            <div class="flex flex-wrap items-center gap-3"><h3 class="font-bold text-gray-800 flex items-center text-sm md:text-base"><i class="fas fa-chart-line text-blue-500 mr-1"></i>Sensor Analytics</h3><div class="flex items-center gap-3"><span class="flex items-center gap-1 text-xs font-semibold text-red-600"><span style="display:inline-block;width:20px;height:3px;background:rgb(239,68,68);border-radius:2px"></span>Temp (°C)</span><span class="flex items-center gap-1 text-xs font-semibold text-blue-600"><span style="display:inline-block;width:20px;height:3px;background:rgb(59,130,246);border-radius:2px"></span>Humidity (%)</span></div></div>
+            <div class="flex flex-wrap items-center gap-3"><h3 class="font-bold text-gray-800 flex items-center text-sm md:text-base"><i class="fas fa-chart-line text-blue-500 mr-1"></i>Sensor Analytics</h3><div class="flex items-center gap-3"><span class="flex items-center gap-1 text-xs font-semibold text-red-600"><span style="display:inline-block;width:20px;height:3px;background:rgb(239,68,68);border-radius:2px"></span>Temp (°C)</span><span class="flex items-center gap-1 text-xs font-semibold text-blue-600"><span style="display:inline-block;width:20px;height:3px;background:rgb(59,130,246);border-radius:2px"></span>Humidity (%)</span><span id="weather-legend-temp" class="hidden flex items-center gap-1 text-xs font-semibold text-amber-600"><span style="display:inline-block;width:20px;height:3px;background:rgb(245,158,11);border-radius:2px;border:1px dashed rgb(245,158,11)"></span>Outdoor °C</span><span id="weather-legend-hum" class="hidden flex items-center gap-1 text-xs font-semibold text-teal-600"><span style="display:inline-block;width:20px;height:3px;background:rgb(20,184,166);border-radius:2px;border:1px dashed rgb(20,184,166)"></span>Outdoor %</span><span id="weather-legend-wind" class="hidden flex items-center gap-1 text-xs font-semibold text-emerald-600"><span style="display:inline-block;width:20px;height:3px;background:rgb(16,185,129);border-radius:2px;border:1px dashed rgb(16,185,129)"></span>Wind m/s</span></div></div>
             <div class="flex flex-wrap gap-1.5">
                 <button onclick="refreshGraphData()" class="px-2.5 py-1.5 bg-indigo-600 text-white rounded-lg text-xs hover:bg-indigo-700 transition shadow-sm flex items-center"><i class="fas fa-chart-line mr-1 text-xs"></i>Refresh</button>
-                <select id="time-range" onchange="updateAllCharts()" class="px-2.5 py-1.5 border rounded-lg text-xs bg-white focus:ring-2 focus:ring-blue-400"><option value="minute">By Minute</option><option value="hourly" selected>Hourly</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="yearly">Yearly</option></select>
+                <select id="time-range" onchange="reloadAllData()" class="px-2.5 py-1.5 border rounded-lg text-xs bg-white focus:ring-2 focus:ring-blue-400"><option value="minute">By Minute</option><option value="hourly" selected>Hourly</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="yearly">Yearly</option></select>
+                <button onclick="toggleWeatherOverlay('temp')" id="btn-wx-temp" class="px-2.5 py-1.5 rounded-lg text-xs transition shadow-sm border-2 border-amber-500 bg-white text-amber-600">🌤 Out Temp</button>
+                <button onclick="toggleWeatherOverlay('hum')" id="btn-wx-hum" class="px-2.5 py-1.5 rounded-lg text-xs transition shadow-sm border-2 border-teal-500 bg-white text-teal-600">🌧 Out Humid</button>
+                <button onclick="toggleWeatherOverlay('wind')" id="btn-wx-wind" class="px-2.5 py-1.5 rounded-lg text-xs transition shadow-sm border-2 border-emerald-500 bg-white text-emerald-600">💨 Wind</button>
                 <button onclick="exportGraphAsPNG()" class="px-2.5 py-1.5 bg-purple-600 text-white rounded-lg text-xs hover:bg-purple-700 transition shadow-sm"><i class="fas fa-camera mr-1 text-xs"></i>PNG</button>
                 <button onclick="exportGraphData()" class="px-2.5 py-1.5 bg-blue-600 text-white rounded-lg text-xs hover:bg-blue-700 transition shadow-sm"><i class="fas fa-download mr-1 text-xs"></i>CSV</button>
                 <button onclick="confirmResetData()" class="px-2.5 py-1.5 bg-red-600 text-white rounded-lg text-xs hover:bg-red-700 transition shadow-sm"><i class="fas fa-trash-alt mr-1 text-xs"></i>Reset</button>
@@ -127,7 +147,7 @@
     <!-- Bottom Row -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div class="lg:col-span-2 bg-white rounded-xl shadow-lg p-4">
-            <div class="flex items-center justify-between mb-3 border-b pb-1.5"><h3 class="font-bold text-gray-800 flex items-center text-sm"><i class="fas fa-history text-blue-500 mr-1"></i>Recent Readings<span class="ml-2 text-xs text-gray-400 font-normal" id="readings-device-label"></span></h3><button onclick="exportReadingsToCSV()" class="px-2.5 py-1.5 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700 transition shadow-sm"><i class="fas fa-file-csv mr-1"></i>Export</button></div>
+            <div class="flex items-center justify-between mb-3 border-b pb-1.5"><h3 class="font-bold text-gray-800 flex items-center text-sm"><i class="fas fa-history text-blue-500 mr-1"></i>Recent Readings<span class="ml-2 text-xs text-gray-400 font-normal" id="readings-device-label"></span></h3><button onclick="exportReadingsToCSV()" class="px-2.5 py-1.5 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700 transition shadow-sm" title="Export visible data"><i class="fas fa-file-csv mr-1"></i>Export</button><button onclick="exportAllFromServer()" class="px-2.5 py-1.5 bg-indigo-600 text-white rounded-lg text-xs hover:bg-indigo-700 transition shadow-sm" title="Download complete history"><i class="fas fa-database mr-1"></i>All Data</button></div>
             <div class="table-wrap max-h-60 overflow-y-auto border rounded-lg"><table class="min-w-full divide-y divide-gray-200 text-xs"><thead class="bg-gray-50 sticky top-0"><tr><th class="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">Date</th><th class="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">Time</th><th class="px-3 py-2 text-left font-medium text-gray-400 uppercase tracking-wider">Device</th><th class="px-3 py-2 text-left font-medium text-red-500 uppercase tracking-wider">Temp °C</th><th class="px-3 py-2 text-left font-medium text-blue-500 uppercase tracking-wider">Humid %</th><th class="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">Status</th></tr></thead><tbody id="readings-table-body" class="bg-white divide-y divide-gray-200"></tbody></table></div>
         </div>
         <div class="bg-white rounded-xl shadow-lg p-4 flex flex-col">
@@ -157,6 +177,26 @@
 </div>
 <!-- Edit Device Modal -->
 <div id="edit-modal" class="hidden fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50"><div class="bg-white rounded-xl shadow-xl p-5 w-80"><h3 class="font-bold text-gray-800 mb-3 text-sm"><i class="fas fa-edit mr-1"></i>Edit Device Name</h3><input type="hidden" id="edit-device-id"><label class="block text-xs text-gray-500 mb-1">Device Name</label><input type="text" id="edit-device-name" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500" onkeydown="if(event.key==='Enter') saveDeviceEdit()"><div class="flex gap-2"><button onclick="saveDeviceEdit()" class="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition font-medium"><i class="fas fa-check mr-1"></i>Save</button><button onclick="closeEditModal()" class="px-3 py-2 bg-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-300 transition"><i class="fas fa-times mr-1"></i>Cancel</button></div></div></div>
+<!-- Weather Settings Modal -->
+<div id="weather-modal" class="hidden fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-xl p-5 w-96">
+        <h3 class="font-bold text-gray-800 mb-3 text-sm flex items-center"><i class="fas fa-cloud-sun text-amber-500 mr-2"></i>Weather Settings</h3>
+        <div class="space-y-3">
+            <div><label class="block text-xs text-gray-500 mb-1">OpenWeatherMap API Key</label><input type="text" id="wx-api-key" placeholder="Enter API key..." class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-400"><p class="text-xs text-gray-400 mt-0.5">Get free key at <a href="https://openweathermap.org/api" target="_blank" class="text-amber-600 underline">openweathermap.org</a></p><p id="wx-key-status" class="text-xs text-green-600 mt-0.5 hidden"></p></div>
+            <div><label class="block text-xs text-gray-500 mb-1">City Name</label><input type="text" id="wx-city" placeholder="e.g., Lund,SE or London,UK" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"><p class="text-xs text-gray-400 mt-0.5">Format: City,CountryCode (or leave blank to use lat/lon)</p></div>
+            <div class="grid grid-cols-2 gap-2">
+                <div><label class="block text-xs text-gray-500 mb-1">Latitude</label><input type="text" id="wx-lat" placeholder="e.g., 55.70" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"></div>
+                <div><label class="block text-xs text-gray-500 mb-1">Longitude</label><input type="text" id="wx-lon" placeholder="e.g., 13.19" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"></div>
+            </div>
+            <div><label class="block text-xs text-gray-500 mb-1">Refresh Interval</label><select id="wx-interval" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"><option value="5">Every 5 minutes</option><option value="15" selected>Every 15 minutes</option><option value="30">Every 30 minutes</option><option value="60">Every 60 minutes</option></select></div>
+        </div>
+        <div class="flex gap-2 mt-4">
+            <button onclick="saveWeatherConfig()" class="flex-1 px-3 py-2 bg-amber-600 text-white rounded-lg text-sm hover:bg-amber-700 transition font-medium"><i class="fas fa-check mr-1"></i>Save</button>
+            <button onclick="testWeather()" class="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition font-medium"><i class="fas fa-cloud mr-1"></i>Test</button>
+            <button onclick="closeWeatherSettings()" class="px-3 py-2 bg-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-300 transition"><i class="fas fa-times mr-1"></i>Cancel</button>
+        </div>
+    </div>
+</div>
 <script>
 function $(id){return document.getElementById(id);}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
@@ -224,11 +264,15 @@ function setChartDevice(id){chartDeviceFilter=id;updateChartDeviceTabs();updateA
 function scanNetwork(){alert('The server polls all configured devices automatically. Add a new device by hostname and it starts collecting immediately.');}
 
 // ── Data loading ─────────────────────────────────────────────
-async function loadReadingsFromServer(hours){try{const params=new URLSearchParams();if(hours)params.set('hours',hours);params.set('limit','5000');const data=await api('/readings?'+params.toString());sensorReadings=data.readings.map(r=>({timestamp:new Date(r.recorded_at.replace(' ','T')+'Z'),temperature:r.temperature,humidity:r.humidity,deviceId:r.device_id,deviceName:r.device_name,uptime:r.uptime})).reverse();}catch(e){console.error(e);}}
+async function loadReadingsFromServer(hours){try{const params=new URLSearchParams();if(hours)params.set('hours',hours);const lim=hours<=1?2000:hours<=24?3000:hours<=720?5000:10000;params.set('limit',String(lim));const data=await api('/readings?'+params.toString());sensorReadings=data.readings.map(r=>({timestamp:new Date(r.recorded_at.replace(' ','T')+'Z'),temperature:r.temperature,humidity:r.humidity,deviceId:r.device_id,deviceName:r.device_name,uptime:r.uptime})).reverse();}catch(e){console.error(e);}}
 
 async function updateStatsFromServer(){try{const stats=await api('/readings/stats');$('total-readings-status').innerText=stats.total_readings||0;readingCountSpan.innerText=stats.total_readings||0;if(!stats.total_readings){['min-temp','max-temp','min-hum','max-hum'].forEach(id=>$(id).innerText='--');$('max-temp-time').innerText=$('max-hum-time').innerText='--';return;}$('min-temp').innerText=(stats.min_temp??'--')+' °C';$('max-temp').innerText=(stats.max_temp??'--')+' °C';$('max-temp-time').innerText=stats.last_reading?new Date((stats.last_reading||'').replace(' ','T')+'Z').toLocaleDateString():'--';$('min-hum').innerText=(stats.min_hum??'--')+' %';$('max-hum').innerText=(stats.max_hum??'--')+' %';$('max-hum-time').innerText=stats.last_reading?new Date((stats.last_reading||'').replace(' ','T')+'Z').toLocaleDateString():'--';}catch(e){console.error(e);}}
 
-function updateReadingsTable(){const filterFn=r=>chartDeviceFilter==='all'||r.deviceId===chartDeviceFilter;const recent=sensorReadings.filter(filterFn).slice(-20).reverse();if(!recent.length){readingsTableBody.innerHTML='<tr><td colspan="6" class="px-4 py-4 text-center text-gray-500">No readings yet</td></tr>';return;}readingsTableBody.innerHTML=recent.map(r=>{const st=r.temperature>30?'🔴 Hot':r.temperature<15?'🔵 Cold':'🟢 Normal';return'<tr class="hover:bg-gray-50"><td class="px-3 py-2 whitespace-nowrap">'+r.timestamp.toLocaleDateString()+'</td><td class="px-3 py-2 whitespace-nowrap">'+r.timestamp.toLocaleTimeString()+'</td><td class="px-3 py-2 whitespace-nowrap text-gray-400 text-xs">'+esc(r.deviceName||'?')+'</td><td class="px-3 py-2 whitespace-nowrap font-mono font-semibold text-red-700">'+r.temperature.toFixed(1)+'</td><td class="px-3 py-2 whitespace-nowrap font-mono font-semibold text-blue-700">'+r.humidity.toFixed(1)+'</td><td class="px-3 py-2 whitespace-nowrap">'+st+'</td></tr>';}).join('');}
+function updateReadingsTable(){const filterFn=r=>chartDeviceFilter==='all'||r.deviceId===chartDeviceFilter;const sensorRows=sensorReadings.filter(filterFn).slice(-20).map(r=>({time:r.timestamp,date:r.timestamp.toLocaleDateString(),timeStr:r.timestamp.toLocaleTimeString(),device:r.deviceName||'?',temp:r.temperature.toFixed(1),hum:r.humidity.toFixed(1),status:r.temperature>30?'🔴 Hot':r.temperature<15?'🔵 Cold':'🟢 Normal',src:'sensor'}));
+    const wxRows=weatherReadings.slice(-10).map(r=>({time:r.timestamp,date:r.timestamp.toLocaleDateString(),timeStr:r.timestamp.toLocaleTimeString(),device:'🌤 Weather ('+( r.city||'Outdoor')+')',temp:r.temperature!=null?r.temperature.toFixed(1):'--',hum:r.humidity!=null?r.humidity.toFixed(0):'--',status:'🌤 '+( r.description||'--'),src:'weather'}));
+    const all=[...sensorRows,...wxRows].sort((a,b)=>b.time-a.time).slice(0,30);
+    if(!all.length){readingsTableBody.innerHTML='<tr><td colspan="6" class="px-4 py-4 text-center text-gray-500">No readings yet</td></tr>';return;}
+    readingsTableBody.innerHTML=all.map(r=>{const iw=r.src==='weather';return'<tr class="hover:bg-gray-50'+(iw?' bg-amber-50':'')+'"><td class="px-3 py-2 whitespace-nowrap">'+r.date+'</td><td class="px-3 py-2 whitespace-nowrap">'+r.timeStr+'</td><td class="px-3 py-2 whitespace-nowrap text-xs '+(iw?'text-amber-600 font-medium':'text-gray-400')+'">'+esc(r.device)+'</td><td class="px-3 py-2 whitespace-nowrap font-mono font-semibold '+(iw?'text-amber-700':'text-red-700')+'">'+r.temp+'</td><td class="px-3 py-2 whitespace-nowrap font-mono font-semibold '+(iw?'text-teal-700':'text-blue-700')+'">'+r.hum+'</td><td class="px-3 py-2 whitespace-nowrap">'+r.status+'</td></tr>';}).join('');}
 function filteredReadings(){return chartDeviceFilter==='all'?sensorReadings:sensorReadings.filter(r=>r.deviceId===chartDeviceFilter);}
 function aggregateReadings(buckets,metric,readings){const data=readings||filteredReadings();return buckets.map(({start,end})=>{const inRange=data.filter(r=>r.timestamp>=start&&r.timestamp<end);if(!inRange.length)return null;return parseFloat((inRange.reduce((s,r)=>s+r[metric],0)/inRange.length).toFixed(2));});}
 function buildBuckets(range){const now=new Date(),labels=[],buckets=[];switch(range){case'minute':for(let i=59;i>=0;i--){const s=new Date(now);s.setMinutes(now.getMinutes()-i,0,0);const e=new Date(s);e.setMinutes(s.getMinutes()+1);labels.push(s.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));buckets.push({start:s,end:e});}break;case'hourly':for(let i=23;i>=0;i--){const s=new Date(now);s.setHours(now.getHours()-i,0,0,0);const e=new Date(s);e.setHours(s.getHours()+1);labels.push(s.toLocaleTimeString([],{hour:'2-digit'}));buckets.push({start:s,end:e});}break;case'daily':for(let i=29;i>=0;i--){const s=new Date(now);s.setDate(now.getDate()-i);s.setHours(0,0,0,0);const e=new Date(s);e.setDate(s.getDate()+1);labels.push(s.toLocaleDateString([],{month:'short',day:'numeric'}));buckets.push({start:s,end:e});}break;case'weekly':for(let i=11;i>=0;i--){const s=new Date(now);s.setDate(now.getDate()-(now.getDay()+i*7));s.setHours(0,0,0,0);const e=new Date(s);e.setDate(s.getDate()+7);labels.push('W'+i);buckets.push({start:s,end:e});}break;case'monthly':for(let i=11;i>=0;i--){const s=new Date(now.getFullYear(),now.getMonth()-i,1);const e=new Date(s.getFullYear(),s.getMonth()+1,1);labels.push(s.toLocaleDateString([],{month:'short'}));buckets.push({start:s,end:e});}break;case'quarterly':for(let i=3;i>=0;i--){const s=new Date(now.getFullYear(),now.getMonth()-(i*3),1);const e=new Date(s.getFullYear(),s.getMonth()+3,1);labels.push('Q'+(Math.floor(s.getMonth()/3)+1)+' '+s.getFullYear());buckets.push({start:s,end:e});}break;case'yearly':{const years=[...new Set(sensorReadings.map(r=>r.timestamp.getFullYear()))].sort();if(!years.length)years.push(now.getFullYear());years.forEach(y=>{labels.push(String(y));buckets.push({start:new Date(y,0,1),end:new Date(y+1,0,1)});});}break;}return{labels,buckets};}
@@ -236,7 +280,14 @@ function buildBuckets(range){const now=new Date(),labels=[],buckets=[];switch(ra
 // ── Charts ───────────────────────────────────────────────────
 function initCharts(){mainChart=new Chart($('mainChart').getContext('2d'),{type:'line',data:{labels:[],datasets:[{label:'Temperature (°C)',data:[],borderColor:'rgb(239,68,68)',backgroundColor:'rgba(239,68,68,0.07)',borderWidth:2.5,pointRadius:3,pointHoverRadius:6,pointBackgroundColor:'rgb(239,68,68)',pointBorderColor:'#fff',pointBorderWidth:1.5,tension:0.35,fill:true,yAxisID:'yTemp',spanGaps:true},{label:'Humidity (%)',data:[],borderColor:'rgb(59,130,246)',backgroundColor:'rgba(59,130,246,0.07)',borderWidth:2.5,pointRadius:3,pointHoverRadius:6,pointBackgroundColor:'rgb(59,130,246)',pointBorderColor:'#fff',pointBorderWidth:1.5,tension:0.35,fill:true,yAxisID:'yHum',spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(17,24,39,0.9)',titleFont:{size:11},bodyFont:{size:11},padding:10,callbacks:{label:ctx=>{if(ctx.raw===null)return null;const u=ctx.dataset.yAxisID==='yTemp'?' °C':' %';return'  '+ctx.dataset.label+': '+ctx.raw.toFixed(1)+u;}}}},scales:{x:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{size:10},maxRotation:45,maxTicksLimit:12}},yTemp:{type:'linear',position:'left',title:{display:true,text:'Temperature (°C)',color:'rgb(220,38,38)',font:{size:11,weight:'600'}},ticks:{color:'rgb(220,38,38)',font:{size:10},callback:v=>v.toFixed(1)+'°'},grid:{color:'rgba(239,68,68,0.07)'}},yHum:{type:'linear',position:'right',title:{display:true,text:'Humidity (%)',color:'rgb(37,99,235)',font:{size:11,weight:'600'}},ticks:{color:'rgb(37,99,235)',font:{size:10},callback:v=>v.toFixed(1)+'%'},grid:{display:false}}}}});const miniOpts=()=>({responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{x:{display:false},yTemp:{display:false},yHum:{display:false}},elements:{line:{tension:0.3},point:{radius:0}}});const miniDS=()=>([{data:[],borderColor:'rgb(239,68,68)',backgroundColor:'rgba(239,68,68,0.1)',borderWidth:1.5,yAxisID:'yTemp',spanGaps:true},{data:[],borderColor:'rgb(59,130,246)',backgroundColor:'rgba(59,130,246,0.1)',borderWidth:1.5,yAxisID:'yHum',spanGaps:true}]);weekMiniChart=new Chart($('weekMiniChart').getContext('2d'),{type:'line',data:{labels:[],datasets:miniDS()},options:miniOpts()});monthMiniChart=new Chart($('monthMiniChart').getContext('2d'),{type:'line',data:{labels:[],datasets:miniDS()},options:miniOpts()});quarterMiniChart=new Chart($('quarterMiniChart').getContext('2d'),{type:'line',data:{labels:[],datasets:miniDS()},options:miniOpts()});yearMiniChart=new Chart($('yearMiniChart').getContext('2d'),{type:'line',data:{labels:[],datasets:miniDS()},options:miniOpts()});updateAllCharts();}
 const updateAllCharts=debounce(function(){const range=$('time-range')?$('time-range').value:'hourly';updateMainChart(range);updateMiniCharts();updateReadingsTable();},100);
-function updateMainChart(range){if(!mainChart)return;const{labels,buckets}=buildBuckets(range);const tData=aggregateReadings(buckets,'temperature'),hData=aggregateReadings(buckets,'humidity');mainChart.data.labels=labels;mainChart.data.datasets[0].data=tData;mainChart.data.datasets[1].data=hData;mainChart.update();const setStats=(pfx,arr,unit)=>{const valid=arr.filter(v=>v!==null);if(!valid.length){$('period-avg-'+pfx).innerText=$('period-min-'+pfx).innerText=$('period-max-'+pfx).innerText='--';return;}$('period-avg-'+pfx).innerText=(valid.reduce((a,b)=>a+b,0)/valid.length).toFixed(1)+unit;$('period-min-'+pfx).innerText=Math.min(...valid).toFixed(1)+unit;$('period-max-'+pfx).innerText=Math.max(...valid).toFixed(1)+unit;};setStats('temp',tData,' °C');setStats('hum',hData,' %');}
+function updateMainChart(range){if(!mainChart)return;const{labels,buckets}=buildBuckets(range);const tData=aggregateReadings(buckets,'temperature'),hData=aggregateReadings(buckets,'humidity');mainChart.data.labels=labels;mainChart.data.datasets[0].data=tData;mainChart.data.datasets[1].data=hData;
+    // Remove old weather datasets (index 2+)
+    while(mainChart.data.datasets.length>2)mainChart.data.datasets.pop();
+    // Add weather overlays if toggled
+    if(showWxTemp&&weatherReadings.length){mainChart.data.datasets.push({label:'Outdoor Temp (°C)',data:aggregateWeather(buckets,'temperature'),borderColor:'rgb(245,158,11)',backgroundColor:'rgba(245,158,11,0.05)',borderWidth:2,borderDash:[6,3],pointRadius:2,pointBackgroundColor:'rgb(245,158,11)',tension:0.35,fill:false,yAxisID:'yTemp',spanGaps:true});}
+    if(showWxHum&&weatherReadings.length){mainChart.data.datasets.push({label:'Outdoor Humidity (%)',data:aggregateWeather(buckets,'humidity'),borderColor:'rgb(20,184,166)',backgroundColor:'rgba(20,184,166,0.05)',borderWidth:2,borderDash:[6,3],pointRadius:2,pointBackgroundColor:'rgb(20,184,166)',tension:0.35,fill:false,yAxisID:'yHum',spanGaps:true});}
+    if(showWxWind&&weatherReadings.length){mainChart.data.datasets.push({label:'Wind (m/s)',data:aggregateWeather(buckets,'wind_speed'),borderColor:'rgb(16,185,129)',backgroundColor:'rgba(16,185,129,0.05)',borderWidth:2,borderDash:[4,4],pointRadius:2,pointBackgroundColor:'rgb(16,185,129)',tension:0.35,fill:false,yAxisID:'yHum',spanGaps:true});}
+    mainChart.update();const setStats=(pfx,arr,unit)=>{const valid=arr.filter(v=>v!==null);if(!valid.length){$('period-avg-'+pfx).innerText=$('period-min-'+pfx).innerText=$('period-max-'+pfx).innerText='--';return;}$('period-avg-'+pfx).innerText=(valid.reduce((a,b)=>a+b,0)/valid.length).toFixed(1)+unit;$('period-min-'+pfx).innerText=Math.min(...valid).toFixed(1)+unit;$('period-max-'+pfx).innerText=Math.max(...valid).toFixed(1)+unit;};setStats('temp',tData,' °C');setStats('hum',hData,' %');}
 function fillMini(chart,readings,buckets,labels){if(!chart)return;chart.data.labels=labels;chart.data.datasets[0].data=aggregateReadings(buckets,'temperature',readings);chart.data.datasets[1].data=aggregateReadings(buckets,'humidity',readings);chart.update();}
 function updateMiniCharts(){const fr=filteredReadings(),now=new Date();const mk=(n,fn)=>{const b=[],l=[];for(let i=n-1;i>=0;i--){const{s,e,lbl}=fn(i);b.push({start:s,end:e});l.push(lbl);}return{b,l};};const w=mk(7,i=>{const s=new Date(now);s.setDate(now.getDate()-i);s.setHours(0,0,0,0);const e=new Date(s);e.setDate(s.getDate()+1);return{s,e,lbl:i};});fillMini(weekMiniChart,fr,w.b,w.l);const m=mk(4,i=>{const s=new Date(now);s.setDate(now.getDate()-(now.getDay()+i*7));s.setHours(0,0,0,0);const e=new Date(s);e.setDate(s.getDate()+7);return{s,e,lbl:i};});fillMini(monthMiniChart,fr,m.b,m.l);const q=mk(3,i=>{const s=new Date(now.getFullYear(),now.getMonth()-i,1);const e=new Date(s.getFullYear(),s.getMonth()+1,1);return{s,e,lbl:i};});fillMini(quarterMiniChart,fr,q.b,q.l);const y=mk(12,i=>{const s=new Date(now.getFullYear(),now.getMonth()-i,1);const e=new Date(s.getFullYear(),s.getMonth()+1,1);return{s,e,lbl:i};});fillMini(yearMiniChart,fr,y.b,y.l);}
 
@@ -258,11 +309,7 @@ async function fetchData(){
         statusIndicator.className='w-2.5 h-2.5 rounded-full bg-green-500 flex-shrink-0';statusText.innerText='Online · '+freshDev.name;renderDeviceUI();
     }catch(error){statusIndicator.className='w-2.5 h-2.5 rounded-full bg-yellow-500 flex-shrink-0';statusText.innerText='Server error';rawData.innerText='// Error:\n// '+error.message;}
 }
-async function refreshDashboard(){await (async()=>{
-    const range=$('time-range')?$('time-range').value:'hourly';
-    const hoursMap={minute:2,hourly:48,daily:720,weekly:2160,monthly:8760,quarterly:8760,yearly:26280};
-    await loadReadingsFromServer(hoursMap[range]||72);
-})();await updateStatsFromServer();updateAllCharts();updateReadingsTable();}
+async function refreshDashboard(){const range=$('time-range')?$('time-range').value:'hourly';const hoursMap={minute:1,hourly:24,daily:30*24,weekly:12*7*24,monthly:365*24,quarterly:365*24,yearly:3*365*24};await loadReadingsFromServer(hoursMap[range]||72);await updateStatsFromServer();updateAllCharts();updateReadingsTable();}
 function startPolling(){if(refreshInterval)clearInterval(refreshInterval);refreshInterval=setInterval(()=>{if(autoRefresh)fetchData();},5000);}
 function stopPolling(){if(refreshInterval){clearInterval(refreshInterval);refreshInterval=null;}}
 function toggleAutoRefresh(){autoRefresh=!autoRefresh;const btn=$('auto-refresh-btn');if(autoRefresh){btn.className='w-full px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition shadow-sm text-xs font-medium';btn.innerHTML='<i class="fas fa-play mr-1"></i>Auto Refresh: ON';startPolling();}else{btn.className='w-full px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition shadow-sm text-xs font-medium';btn.innerHTML='<i class="fas fa-pause mr-1"></i>Auto Refresh: OFF';clearInterval(refreshInterval);}}
@@ -270,17 +317,100 @@ async function testConnection(){const dev=devices.find(d=>d.id===activeDeviceId)
 async function confirmResetData(){if(!confirm('Delete ALL readings? Cannot be undone.'))return;try{await api('/readings',{method:'DELETE'});sensorReadings=[];await updateStatsFromServer();updateAllCharts();updateReadingsTable();}catch(e){alert('Failed: '+e.message);}}
 async function clearAllConfig(){if(!confirm('Remove all devices and readings?'))return;stopPolling();try{for(const dev of[...devices])await api('/devices/'+dev.id,{method:'DELETE'});devices=[];activeDeviceId=null;sensorReadings=[];latestByDevice={};statusIndicator.className='w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0';statusText.innerText='No device selected';rawData.innerText='// Add a device to get started';$('temperature-display').innerText='-- °C';$('humidity-display').innerText='-- %';$('sys-temp').innerText=$('sys-hum').innerText='--';$('sys-sensor-ok').innerText='--';$('sys-uptime').innerText='--';$('sys-active-device').innerText='none';$('sys-hostname').innerText='—';$('active-device-bar').classList.add('hidden');renderDeviceUI();updateAllCharts();}catch(e){alert('Failed: '+e.message);}}
 async function refreshGraphData(){const btn=event.currentTarget||event.target;btn.innerHTML='<i class="fas fa-spinner fa-spin mr-1"></i>Refreshing...';btn.disabled=true;await refreshDashboard();setTimeout(()=>{btn.innerHTML='<i class="fas fa-chart-line mr-1"></i>Refresh';btn.disabled=false;},300);}
-function exportReadingsToCSV(){const params=new URLSearchParams();if(chartDeviceFilter!=='all')params.set('device_id',chartDeviceFilter);window.open(API+'/readings/export/csv?'+params.toString());}
-function exportGraphData(){if(!mainChart)return;const range=$('time-range').value;let csv='Interval ('+range+'),Temperature (°C),Humidity (%)\n';mainChart.data.labels.forEach((l,i)=>{const t=mainChart.data.datasets[0].data[i],h=mainChart.data.datasets[1].data[i];csv+='"'+l+'",'+(t!==null?t:'')+','+(h!==null?h:'')+'\n';});saveAs(new Blob([csv],{type:'text/csv'}),'graph_'+range+'_'+new Date().toISOString().slice(0,10)+'.csv');}
+function exportReadingsToCSV(){
+    const filterFn=r=>chartDeviceFilter==='all'||r.deviceId===chartDeviceFilter;
+    const sensorRows=sensorReadings.filter(filterFn).map(r=>({time:r.timestamp,device:r.deviceName||'?',temp:r.temperature.toFixed(1),hum:r.humidity.toFixed(1),wind:'',feels:'',pressure:'',desc:'',src:'sensor'}));
+    const wxRows=weatherReadings.map(r=>({time:r.timestamp,device:'Weather ('+(r.city||'Outdoor')+')',temp:r.temperature!=null?r.temperature.toFixed(1):'',hum:r.humidity!=null?r.humidity.toFixed(0):'',wind:r.wind_speed!=null?r.wind_speed:'',feels:r.feels_like!=null?r.feels_like.toFixed(1):'',pressure:r.pressure||'',desc:r.description||'',src:'weather'}));
+    const all=[...sensorRows,...wxRows].sort((a,b)=>a.time-b.time);
+    if(!all.length){alert('No data');return;}
+    let csv='Date,Time,Device,Temperature (°C),Humidity (%),Wind (m/s),Feels Like (°C),Pressure (hPa),Description\n';
+    all.forEach(r=>{csv+='"'+r.time.toLocaleDateString()+'","'+r.time.toLocaleTimeString()+'","'+r.device+'",'+r.temp+','+r.hum+','+r.wind+','+r.feels+','+r.pressure+',"'+r.desc+'"\n';});
+    saveAs(new Blob([csv],{type:'text/csv'}),'sensorhub_all_'+new Date().toISOString().slice(0,10)+'.csv');}
+function exportGraphData(){if(!mainChart)return;const range=$('time-range').value;
+    const ds=mainChart.data.datasets;const headers=['Interval ('+range+')'];ds.forEach(d=>headers.push(d.label));
+    let csv=headers.join(',')+String.fromCharCode(10);mainChart.data.labels.forEach((l,i)=>{const vals=['"'+l+'"'];ds.forEach(d=>{vals.push(d.data[i]!==null&&d.data[i]!==undefined?d.data[i]:'');});csv+=vals.join(',')+String.fromCharCode(10);});saveAs(new Blob([csv],{type:'text/csv'}),'sensorhub_'+range+'_'+new Date().toISOString().slice(0,10)+'.csv');}
 function exportGraphAsPNG(){html2canvas($('graph-container')).then(canvas=>{const a=document.createElement('a');a.download='dht22_graph_'+new Date().toISOString().slice(0,10)+'.png';a.href=canvas.toDataURL();a.click();}).catch(e=>{console.error(e);alert('Export failed');});}
+
+async function exportAllFromServer(){
+    const btn=event.currentTarget;btn.innerHTML='<i class="fas fa-spinner fa-spin mr-1"></i>Loading...';btn.disabled=true;
+    try{
+        const [sensorResp,wxResp]=await Promise.all([
+            fetch('/api/readings/export/csv').then(r=>r.text()),
+            fetch('/api/weather/readings?hours=999999&limit=999999').then(r=>r.json())
+        ]);
+        let csv='=== SENSOR READINGS ===\n'+sensorResp+'\n\n=== WEATHER DATA ===\n';
+        csv+='Date,Time,Temperature (°C),Humidity (%),Feels Like (°C),Pressure (hPa),Wind (m/s),Description,City\n';
+        wxResp.forEach(r=>{const d=new Date(r.recorded_at+'Z');csv+='"'+d.toLocaleDateString()+'","'+d.toLocaleTimeString()+'",'+
+            (r.temperature??'')+','+(r.humidity??'')+','+(r.feels_like??'')+','+(r.pressure??'')+','+(r.wind_speed??'')+',"'+
+            (r.description||'')+'","'+(r.city||'')+'"\n';});
+        saveAs(new Blob([csv],{type:'text/csv'}),'sensorhub_complete_'+new Date().toISOString().slice(0,10)+'.csv');
+    }catch(e){alert('Export failed: '+e.message);}
+    btn.innerHTML='<i class="fas fa-database mr-1"></i>All Data';btn.disabled=false;
+}
 function copyToClipboard(){navigator.clipboard?.writeText(rawData.innerText).catch(()=>{});}
+
+// ── Weather ───────────────────────────────────────────────
+let weatherInterval=null,weatherReadings=[],showWxTemp=false,showWxHum=false,showWxWind=false;
+async function openWeatherSettings(){
+    try{const cfg=await fetch('/api/weather/config').then(r=>r.json());
+        if(cfg.api_key_set){$('wx-api-key').value='';$('wx-api-key').placeholder='Key saved ('+cfg.api_key_masked+')';$('wx-key-status').innerText='✅ Key is saved';$('wx-key-status').classList.remove('hidden');}
+        else{$('wx-key-status').classList.add('hidden');}
+        $('wx-city').value=cfg.city||'';$('wx-lat').value=cfg.lat||'';$('wx-lon').value=cfg.lon||'';$('wx-interval').value=cfg.interval_minutes||15;
+    }catch(e){console.error(e);}
+    $('weather-modal').classList.remove('hidden');
+}
+function closeWeatherSettings(){$('weather-modal').classList.add('hidden');}
+async function saveWeatherConfig(){
+    const data={};const key=$('wx-api-key').value.trim();if(key)data.api_key=key;
+    data.city=$('wx-city').value.trim();data.lat=$('wx-lat').value.trim();data.lon=$('wx-lon').value.trim();data.interval_minutes=parseInt($('wx-interval').value);
+    try{await fetch('/api/weather/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});closeWeatherSettings();loadWeather();loadWeatherReadings();startWeatherPolling();}catch(e){alert('Error: '+e.message);}
+}
+async function testWeather(){
+    await saveWeatherConfig();
+    try{const w=await fetch('/api/weather/current').then(r=>{if(!r.ok)throw new Error(r.statusText);return r.json();});alert('✅ Weather OK!\n'+w.city+': '+w.temperature+'°C, '+w.description);}catch(e){alert('❌ Failed: '+e.message);}
+}
+async function loadWeather(){
+    try{const w=await fetch('/api/weather/current').then(r=>{if(!r.ok)throw r;return r.json();});
+        $('weather-temp').innerText=w.temperature.toFixed(1)+' °C';$('weather-hum').innerText=w.humidity+'%';
+        $('weather-feels').innerText=w.feels_like.toFixed(1)+' °C';$('weather-wind').innerText=w.wind_speed+' m/s';
+        $('weather-desc').innerText=w.description;$('weather-city').innerText=w.city+(w.country?', '+w.country:'');
+        $('weather-updated').innerText=new Date().toLocaleTimeString();
+        const icon=$('weather-icon');icon.src='https://openweathermap.org/img/wn/'+w.icon+'@2x.png';icon.classList.remove('hidden');
+    }catch(e){$('weather-desc').innerText='Click ⚙ to configure';}
+}
+async function loadWeatherReadings(){
+    try{const range=$('time-range')?$('time-range').value:'hourly';
+        const hoursMap={minute:1,hourly:24,daily:30*24,weekly:12*7*24,monthly:365*24,quarterly:365*24,yearly:3*365*24};
+        const hours=hoursMap[range]||72;
+        const data=await fetch('/api/weather/readings?hours='+hours+'&limit=5000').then(r=>r.json());
+        weatherReadings=data.map(r=>({...r,timestamp:new Date(r.recorded_at.replace(' ','T')+'Z')})).reverse();
+    }catch(e){weatherReadings=[];console.error('Weather readings:',e);}
+    updateAllCharts();
+}
+function startWeatherPolling(){
+    if(weatherInterval)clearInterval(weatherInterval);
+    fetch('/api/weather/config').then(r=>r.json()).then(cfg=>{
+        const ms=(cfg.interval_minutes||15)*60*1000;
+        weatherInterval=setInterval(()=>{loadWeather();loadWeatherReadings();},ms);
+    }).catch(()=>{});
+}
+function toggleWeatherOverlay(type){
+    if(type==='temp'){showWxTemp=!showWxTemp;const btn=$('btn-wx-temp');if(showWxTemp){btn.style.cssText='border-color:rgb(245,158,11);background:rgb(245,158,11);color:#fff';$('weather-legend-temp').classList.remove('hidden');}else{btn.style.cssText='border-color:rgb(245,158,11);background:white;color:rgb(245,158,11)';$('weather-legend-temp').classList.add('hidden');}}
+    if(type==='hum'){showWxHum=!showWxHum;const btn=$('btn-wx-hum');if(showWxHum){btn.style.cssText='border-color:rgb(20,184,166);background:rgb(20,184,166);color:#fff';$('weather-legend-hum').classList.remove('hidden');}else{btn.style.cssText='border-color:rgb(20,184,166);background:white;color:rgb(20,184,166)';$('weather-legend-hum').classList.add('hidden');}}
+    if(type==='wind'){showWxWind=!showWxWind;const btn=$('btn-wx-wind');if(showWxWind){btn.style.cssText='border-color:rgb(16,185,129);background:rgb(16,185,129);color:#fff';$('weather-legend-wind').classList.remove('hidden');}else{btn.style.cssText='border-color:rgb(16,185,129);background:white;color:rgb(16,185,129)';$('weather-legend-wind').classList.add('hidden');}}
+    updateAllCharts();
+}
+function aggregateWeather(buckets,metric){
+    return buckets.map(({start,end})=>{const inRange=weatherReadings.filter(r=>r.timestamp>=start&&r.timestamp<end);if(!inRange.length)return null;return parseFloat((inRange.reduce((s,r)=>s+r[metric],0)/inRange.length).toFixed(2));});
+}
+async function reloadAllData(){await refreshDashboard();await loadWeatherReadings();}
 
 // ── Events ───────────────────────────────────────────────────
 document.addEventListener('click',function(e){const sel=e.target.closest('[data-select-id]');const edit=e.target.closest('[data-edit-id]');const remove=e.target.closest('[data-remove-id]');const chart=e.target.closest('[data-chart-id]');if(sel)selectDevice(sel.dataset.selectId);if(edit){e.stopPropagation();openEditModal(edit.dataset.editId);}if(remove){e.stopPropagation();removeDevice(remove.dataset.removeId);}if(chart)setChartDevice(chart.dataset.chartId);});
 
 // ── Init ─────────────────────────────────────────────────────
-window.onload=async()=>{statusIndicator=$('status-indicator');statusText=$('status-text');rawData=$('raw-data');lastUpdateSpan=$('last-update');readingCountSpan=$('reading-count');readingsTableBody=$('readings-table-body');await loadDevices();await loadLatestReadings();renderDeviceUI();if($('mainChart'))initCharts();await refreshDashboard();if(devices.length>0){activeDeviceId=devices[0].id;selectDevice(activeDeviceId);}else{rawData.innerText='// Add a device above to get started.';}setInterval(async()=>{if(autoRefresh)await refreshDashboard();},5000);window.addEventListener('beforeunload',stopPolling);};
-Object.assign(window,{openEditModal,closeEditModal,saveDeviceEdit,fetchData,testConnection,toggleAutoRefresh,confirmResetData,clearAllConfig,exportReadingsToCSV,exportGraphData,exportGraphAsPNG,refreshGraphData,updateAllCharts,copyToClipboard,addDevice,toggleAddForm,scanNetwork,refreshAllDevices});
+window.onload=async()=>{statusIndicator=$('status-indicator');statusText=$('status-text');rawData=$('raw-data');lastUpdateSpan=$('last-update');readingCountSpan=$('reading-count');readingsTableBody=$('readings-table-body');await loadDevices();await loadLatestReadings();renderDeviceUI();if($('mainChart'))initCharts();await refreshDashboard();if(devices.length>0){activeDeviceId=devices[0].id;selectDevice(activeDeviceId);}else{rawData.innerText='// Add a device above to get started.';}loadWeather();loadWeatherReadings();startWeatherPolling();setInterval(async()=>{if(autoRefresh){await loadWeatherReadings();}},60000);window.addEventListener('beforeunload',stopPolling);};
+Object.assign(window,{openEditModal,closeEditModal,saveDeviceEdit,openWeatherSettings,closeWeatherSettings,saveWeatherConfig,testWeather,toggleWeatherOverlay,reloadAllData,fetchData,testConnection,toggleAutoRefresh,confirmResetData,clearAllConfig,exportReadingsToCSV,exportAllFromServer,exportGraphData,exportGraphAsPNG,refreshGraphData,updateAllCharts,copyToClipboard,addDevice,toggleAddForm,scanNetwork,refreshAllDevices});
 </script>
 </body>
 </html>

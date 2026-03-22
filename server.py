@@ -105,6 +105,21 @@ def init_db():
         );
         CREATE INDEX IF NOT EXISTS idx_sessions_device ON pir_sessions(device_id);
         CREATE INDEX IF NOT EXISTS idx_sessions_start ON pir_sessions(start_time);
+
+        -- ── Weather readings (stored from OpenWeatherMap) ────────────────────
+        CREATE TABLE IF NOT EXISTS weather_readings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            temperature REAL,
+            humidity REAL,
+            feels_like REAL,
+            pressure REAL,
+            wind_speed REAL,
+            description TEXT,
+            icon TEXT,
+            city TEXT,
+            recorded_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_weather_ts ON weather_readings(recorded_at);
     """)
     conn.commit()
     conn.close()
@@ -195,10 +210,16 @@ async def lifespan(app):
     init_db()
     load_devices_from_file()
     task = asyncio.create_task(poll_sensors())
+    weather_task = asyncio.create_task(poll_weather())
     yield
     task.cancel()
+    weather_task.cancel()
     try:
         await task
+    except asyncio.CancelledError:
+        pass
+    try:
+        await weather_task
     except asyncio.CancelledError:
         pass
 
@@ -474,10 +495,8 @@ def delete_air_readings(device_id: str = None):
     conn = get_db()
     if device_id:
         conn.execute("DELETE FROM air_readings WHERE device_id=?", (device_id,))
-        conn.execute("DELETE FROM air_devices WHERE device_id=?", (device_id,))
     else:
         conn.execute("DELETE FROM air_readings")
-        conn.execute("DELETE FROM air_devices")
     conn.commit()
     conn.close()
     return {"status": "ok"}
@@ -631,11 +650,186 @@ def delete_pir_sessions(device_id: str = None):
     if device_id:
         conn.execute("DELETE FROM pir_sessions WHERE device_id=?", (device_id,))
         conn.execute("DELETE FROM pir_events WHERE device_id=?", (device_id,))
-        conn.execute("DELETE FROM pir_devices WHERE device_id=?", (device_id,))
     else:
         conn.execute("DELETE FROM pir_sessions")
         conn.execute("DELETE FROM pir_events")
-        conn.execute("DELETE FROM pir_devices")
+    conn.commit()
+    conn.close()
+    return {"status": "ok"}
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  WEATHER API (OpenWeatherMap proxy + storage)
+# ══════════════════════════════════════════════════════════════════════════════
+WEATHER_CONFIG_PATH = Path("/opt/sensorhub/data/weather.json")
+
+def load_weather_config():
+    if WEATHER_CONFIG_PATH.exists():
+        try:
+            return json.loads(WEATHER_CONFIG_PATH.read_text())
+        except:
+            pass
+    return {"api_key": "", "city": "", "lat": "", "lon": "", "interval_minutes": 15}
+
+def save_weather_config(cfg):
+    WEATHER_CONFIG_PATH.write_text(json.dumps(cfg, indent=2))
+
+async def fetch_and_store_weather():
+    """Fetch weather from OpenWeatherMap and store in DB."""
+    cfg = load_weather_config()
+    if not cfg.get("api_key") or (not cfg.get("city") and not (cfg.get("lat") and cfg.get("lon"))):
+        return None
+
+    base = "https://api.openweathermap.org/data/2.5/weather"
+    params = {"appid": cfg["api_key"], "units": "metric"}
+    if cfg.get("lat") and cfg.get("lon"):
+        params["lat"] = cfg["lat"]
+        params["lon"] = cfg["lon"]
+    else:
+        params["q"] = cfg["city"]
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(base, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+
+        weather = {
+            "temperature": data["main"]["temp"],
+            "humidity": data["main"]["humidity"],
+            "feels_like": data["main"]["feels_like"],
+            "pressure": data["main"]["pressure"],
+            "description": data["weather"][0]["description"],
+            "icon": data["weather"][0]["icon"],
+            "wind_speed": data["wind"]["speed"],
+            "city": data.get("name", cfg.get("city", "")),
+            "country": data.get("sys", {}).get("country", ""),
+        }
+
+        # Store in DB
+        conn = get_db()
+        conn.execute(
+            """INSERT INTO weather_readings (temperature, humidity, feels_like, pressure, wind_speed, description, icon, city)
+               VALUES (?,?,?,?,?,?,?,?)""",
+            (weather["temperature"], weather["humidity"], weather["feels_like"],
+             weather["pressure"], weather["wind_speed"], weather["description"],
+             weather["icon"], weather["city"])
+        )
+        conn.commit()
+        conn.close()
+        log.info(f"[Weather] {weather['city']}: {weather['temperature']}°C, {weather['description']}")
+        return weather
+    except Exception as e:
+        log.warning(f"[Weather] Fetch failed: {e}")
+        return None
+
+async def poll_weather():
+    """Background task: fetch weather at configured interval."""
+    log.info("Weather polling started")
+    await asyncio.sleep(5)  # Wait for startup
+    while True:
+        cfg = load_weather_config()
+        interval = max(cfg.get("interval_minutes", 15), 5) * 60
+        await fetch_and_store_weather()
+        await asyncio.sleep(interval)
+
+@app.get("/api/weather/config")
+def get_weather_config_endpoint():
+    cfg = load_weather_config()
+    masked = cfg.copy()
+    if masked.get("api_key"):
+        k = masked["api_key"]
+        masked["api_key_masked"] = k[:4] + "****" + k[-4:] if len(k) > 8 else "****"
+        masked["api_key_set"] = True
+    else:
+        masked["api_key_masked"] = ""
+        masked["api_key_set"] = False
+    masked.pop("api_key", None)
+    return masked
+
+@app.post("/api/weather/config")
+def set_weather_config(data: dict):
+    cfg = load_weather_config()
+    if "api_key" in data and data["api_key"]:
+        cfg["api_key"] = data["api_key"]
+    if "city" in data:
+        cfg["city"] = data["city"]
+    if "lat" in data:
+        cfg["lat"] = data["lat"]
+    if "lon" in data:
+        cfg["lon"] = data["lon"]
+    if "interval_minutes" in data:
+        cfg["interval_minutes"] = int(data["interval_minutes"])
+    save_weather_config(cfg)
+    return {"status": "ok"}
+
+@app.get("/api/weather/current")
+async def get_current_weather():
+    cfg = load_weather_config()
+    if not cfg.get("api_key"):
+        raise HTTPException(400, "No API key configured. Go to weather settings.")
+    if not cfg.get("city") and not (cfg.get("lat") and cfg.get("lon")):
+        raise HTTPException(400, "No location configured. Go to weather settings.")
+
+    base = "https://api.openweathermap.org/data/2.5/weather"
+    params = {"appid": cfg["api_key"], "units": "metric"}
+    if cfg.get("lat") and cfg.get("lon"):
+        params["lat"] = cfg["lat"]
+        params["lon"] = cfg["lon"]
+    else:
+        params["q"] = cfg["city"]
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(base, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+
+        return {
+            "temperature": data["main"]["temp"],
+            "humidity": data["main"]["humidity"],
+            "feels_like": data["main"]["feels_like"],
+            "pressure": data["main"]["pressure"],
+            "description": data["weather"][0]["description"],
+            "icon": data["weather"][0]["icon"],
+            "wind_speed": data["wind"]["speed"],
+            "city": data.get("name", cfg.get("city", "")),
+            "country": data.get("sys", {}).get("country", ""),
+            "fetched_at": datetime.utcnow().isoformat(),
+            "interval_minutes": cfg.get("interval_minutes", 15),
+        }
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(e.response.status_code, f"OpenWeatherMap error: {e.response.text}")
+    except Exception as e:
+        raise HTTPException(502, f"Failed to fetch weather: {str(e)}")
+
+@app.get("/api/weather/readings")
+def get_weather_readings(hours: int = 24, limit: int = 2000):
+    conn = get_db()
+    since = (datetime.utcnow() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
+    rows = conn.execute(
+        "SELECT * FROM weather_readings WHERE recorded_at>=? ORDER BY recorded_at DESC LIMIT ?",
+        (since, limit)
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+@app.get("/api/weather/stats")
+def get_weather_stats():
+    conn = get_db()
+    row = conn.execute(
+        """SELECT COUNT(*) as total,
+                  ROUND(AVG(temperature),1) as avg_temp, ROUND(MIN(temperature),1) as min_temp, ROUND(MAX(temperature),1) as max_temp,
+                  ROUND(AVG(humidity),1) as avg_hum, ROUND(MIN(humidity),1) as min_hum, ROUND(MAX(humidity),1) as max_hum,
+                  MIN(recorded_at) as first_reading, MAX(recorded_at) as last_reading
+           FROM weather_readings"""
+    ).fetchone()
+    conn.close()
+    return dict(row)
+
+@app.delete("/api/weather/readings")
+def delete_weather_readings():
+    conn = get_db()
+    conn.execute("DELETE FROM weather_readings")
     conn.commit()
     conn.close()
     return {"status": "ok"}
@@ -652,7 +846,7 @@ def health():
     pc = conn.execute("SELECT COUNT(*) FROM pir_sessions").fetchone()[0]
     conn.close()
     return {
-        "status": "ok", "version": "2.0",
+        "status": "ok", "version": "2.1",
         "devices": dc, "total_readings": rc,
         "air_readings": ac, "pir_sessions": pc,
         "poll_interval": POLL_INTERVAL

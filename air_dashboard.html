@@ -113,7 +113,7 @@
     <!-- Bottom Row -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div class="lg:col-span-2 bg-white rounded-xl shadow-lg p-4">
-            <div class="flex items-center justify-between mb-3 border-b pb-1.5"><h3 class="font-bold text-gray-800 flex items-center text-sm"><i class="fas fa-history text-blue-500 mr-1"></i>Recent Readings<span class="ml-2 text-xs text-gray-400 font-normal" id="readings-device-label"></span></h3><button onclick="exportReadingsToCSV()" class="px-2.5 py-1.5 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700 transition shadow-sm"><i class="fas fa-file-csv mr-1"></i>Export</button></div>
+            <div class="flex items-center justify-between mb-3 border-b pb-1.5"><h3 class="font-bold text-gray-800 flex items-center text-sm"><i class="fas fa-history text-blue-500 mr-1"></i>Recent Readings<span class="ml-2 text-xs text-gray-400 font-normal" id="readings-device-label"></span></h3><button onclick="exportReadingsToCSV()" class="px-2.5 py-1.5 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700 transition shadow-sm" title="Export visible data"><i class="fas fa-file-csv mr-1"></i>Export</button><button onclick="exportAllAir()" class="px-2.5 py-1.5 bg-indigo-600 text-white rounded-lg text-xs hover:bg-indigo-700 transition shadow-sm" title="Download complete history"><i class="fas fa-database mr-1"></i>All Data</button></div>
             <div class="overflow-x-auto max-h-60 overflow-y-auto border rounded-lg"><table class="min-w-full divide-y divide-gray-200 text-xs"><thead class="bg-gray-50 sticky top-0"><tr><th class="px-3 py-2 text-left font-medium text-gray-500 uppercase">Time</th><th class="px-3 py-2 text-left font-medium text-gray-400 uppercase">Device</th><th class="px-3 py-2 text-left font-medium text-red-500 uppercase">Temp °C</th><th class="px-3 py-2 text-left font-medium text-blue-500 uppercase">Humid %</th><th class="px-3 py-2 text-left font-medium text-green-600 uppercase">eCO₂ ppm</th><th class="px-3 py-2 text-left font-medium text-purple-500 uppercase">TVOC ppb</th></tr></thead><tbody id="readings-table-body" class="bg-white divide-y divide-gray-200"></tbody></table></div>
         </div>
         <div class="bg-white rounded-xl shadow-lg p-4 flex flex-col">
@@ -179,6 +179,18 @@ function exportReadingsToCSV(){if(!readings.length){alert('No data');return;}let
 function exportGraphData(){if(!mainChart)return;const keys=[...activeMetrics];let csv=`Interval,${keys.map(k=>METRICS[k].label+' ('+METRICS[k].unit+')').join(',')}\n`;mainChart.data.labels.forEach((l,i)=>{csv+=`"${l}",${mainChart.data.datasets.map(ds=>ds.data[i]??'').join(',')}\n`;});saveAs(new Blob([csv],{type:'text/csv'}),`air_graph_${new Date().toISOString().slice(0,10)}.csv`);}
 function exportGraphAsPNG(){html2canvas($('graph-container')).then(canvas=>{const a=document.createElement('a');a.download=`air_graph_${new Date().toISOString().slice(0,10)}.png`;a.href=canvas.toDataURL();a.click();});}
 async function confirmResetData(){if(!confirm('Delete ALL air quality readings? This cannot be undone.'))return;try{await api('/readings',{method:'DELETE'});readings=[];updateReadingsTable();updateAllCharts();loadLatest();}catch(e){alert('Error: '+e.message);}}
+
+async function exportAllAir(){
+    const btn=event.currentTarget;btn.innerHTML='<i class="fas fa-spinner fa-spin mr-1"></i>Loading...';btn.disabled=true;
+    try{const data=await api('/readings?hours=999999&limit=999999');
+        if(!data.length){alert('No data');btn.innerHTML='<i class="fas fa-database mr-1"></i>All Data';btn.disabled=false;return;}
+        let csv='Date,Time,Device,Temperature (°C),Humidity (%),eCO2 (ppm),TVOC (ppb),Warmup\n';
+        data.forEach(r=>{const d=new Date(r.recorded_at+'Z');csv+='"'+d.toLocaleDateString()+'","'+d.toLocaleTimeString()+'","'+r.device_id+'",'+
+            (r.temperature??'')+','+(r.humidity??'')+','+(r.eco2??'')+','+(r.tvoc??'')+',"'+(r.warmup_status||'')+'"\n';});
+        saveAs(new Blob([csv],{type:'text/csv'}),'air_quality_complete_'+new Date().toISOString().slice(0,10)+'.csv');
+    }catch(e){alert('Export failed: '+e.message);}
+    btn.innerHTML='<i class="fas fa-database mr-1"></i>All Data';btn.disabled=false;
+}
 function copyToClipboard(){navigator.clipboard?.writeText($('raw-data').innerText).catch(()=>{});}
 function toggleAutoRefresh(){autoRefresh=!autoRefresh;const btn=$('auto-refresh-btn');if(autoRefresh){btn.className='w-full px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition shadow-sm text-xs font-medium';btn.innerHTML='<i class="fas fa-play mr-1"></i>Auto Refresh: ON';startPolling();}else{btn.className='w-full px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition shadow-sm text-xs font-medium';btn.innerHTML='<i class="fas fa-pause mr-1"></i>Auto Refresh: OFF';if(refreshInterval){clearInterval(refreshInterval);refreshInterval=null;}}}
 function startPolling(){if(refreshInterval)clearInterval(refreshInterval);refreshInterval=setInterval(()=>{if(autoRefresh){loadDevices();loadLatest();loadReadingsAndChart();}},10000);}
