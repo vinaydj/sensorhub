@@ -728,7 +728,7 @@ async def poll_weather():
     await asyncio.sleep(5)  # Wait for startup
     while True:
         cfg = load_weather_config()
-        interval = max(cfg.get("interval_minutes", 15), 5) * 60
+        interval = max(cfg.get("interval_minutes", 15), 1) * 60
         await fetch_and_store_weather()
         await asyncio.sleep(interval)
 

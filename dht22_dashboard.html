@@ -188,7 +188,7 @@
                 <div><label class="block text-xs text-gray-500 mb-1">Latitude</label><input type="text" id="wx-lat" placeholder="e.g., 55.70" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"></div>
                 <div><label class="block text-xs text-gray-500 mb-1">Longitude</label><input type="text" id="wx-lon" placeholder="e.g., 13.19" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"></div>
             </div>
-            <div><label class="block text-xs text-gray-500 mb-1">Refresh Interval</label><select id="wx-interval" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"><option value="5">Every 5 minutes</option><option value="15" selected>Every 15 minutes</option><option value="30">Every 30 minutes</option><option value="60">Every 60 minutes</option></select></div>
+            <div><label class="block text-xs text-gray-500 mb-1">Refresh Interval</label><select id="wx-interval" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"><option value="2">Every 2 minutes</option><option value="5">Every 5 minutes</option><option value="15" selected>Every 15 minutes</option><option value="30">Every 30 minutes</option><option value="60">Every 60 minutes</option></select></div>
         </div>
         <div class="flex gap-2 mt-4">
             <button onclick="saveWeatherConfig()" class="flex-1 px-3 py-2 bg-amber-600 text-white rounded-lg text-sm hover:bg-amber-700 transition font-medium"><i class="fas fa-check mr-1"></i>Save</button>
@@ -335,7 +335,7 @@ async function exportAllFromServer(){
     const btn=event.currentTarget;btn.innerHTML='<i class="fas fa-spinner fa-spin mr-1"></i>Loading...';btn.disabled=true;
     try{
         const [sensorResp,wxResp]=await Promise.all([
-            fetch('/api/readings/export/csv').then(r=>r.text()),
+            fetch('/api/readings/export/csv?limit=999999').then(r=>r.text()),
             fetch('/api/weather/readings?hours=999999&limit=999999').then(r=>r.json())
         ]);
         let csv='=== SENSOR READINGS ===\n'+sensorResp+'\n\n=== WEATHER DATA ===\n';
