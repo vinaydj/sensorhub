@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PIR Occupancy – SensorHub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        @keyframes pg{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.4)}50%{box-shadow:0 0 0 5px rgba(34,197,94,0)}}
+        @keyframes pr{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.4)}50%{box-shadow:0 0 0 5px rgba(239,68,68,0)}}
+        @keyframes si{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}
+        .pulse-green{animation:pg 2s infinite}.pulse-red{animation:pr 2s infinite}.slide-in{animation:si .2s ease}
+        .dev-tab{transition:all .15s;cursor:pointer;white-space:nowrap}.dev-tab:hover:not(.active-tab){background:#e0e7ff}
+        .dev-tab.active-tab{background:#4f46e5!important;color:white!important;border-color:#4f46e5!important}
+        .device-card{transition:all .2s ease}.device-card.active-card{border-color:#6366f1!important;background:#eef2ff!important}
+        .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen p-3 md:p-6">
+<div class="max-w-7xl mx-auto">
+    <!-- Header -->
+    <div class="text-center mb-5">
+        <div class="flex items-center justify-center gap-3 mb-1">
+            <a href="/" class="text-xs text-gray-400 hover:text-blue-600 transition flex items-center gap-1"><i class="fas fa-arrow-left"></i> Main Hub</a>
+            <a href="/air/" class="text-xs text-gray-400 hover:text-green-600 transition flex items-center gap-1"><i class="fas fa-leaf"></i> Air Quality</a>
+        </div>
+        <h1 class="text-xl md:text-3xl font-bold text-gray-800 mb-1"><i class="fas fa-chart-pie text-indigo-500 mr-2"></i>Room Occupancy Analytics</h1>
+        <p class="text-xs md:text-sm text-gray-500">Server-backed PIR motion tracking with session analytics</p>
+    </div>
+    <!-- Multi-Device Manager -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-3 md:p-4 mb-4">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <h3 class="font-semibold text-gray-800 flex items-center text-sm"><i class="fas fa-network-wired text-indigo-500 mr-2"></i>Multi-Device Manager</h3>
+            <div class="flex flex-wrap items-center gap-1.5">
+                <button onclick="loadDevices()" class="px-2.5 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-xs hover:bg-indigo-100 transition flex items-center gap-1"><i class="fas fa-sync-alt text-xs"></i> Refresh All</button>
+                <span class="text-xs bg-blue-50 text-blue-700 px-2.5 py-1.5 rounded-full font-medium flex items-center gap-1"><i class="far fa-clock"></i><span id="session-count">0</span> sessions</span>
+            </div>
+        </div>
+        <div class="flex flex-nowrap gap-1.5 mb-2 min-h-7 overflow-x-auto pb-1" id="device-tabs"></div>
+        <div id="no-devices-msg" class="text-center text-gray-400 text-sm py-5 border border-dashed border-gray-200 rounded-lg">No devices registered yet. ESP32 boards will appear once they POST to <code>/api/pir/ingest</code>, or add one manually below.</div>
+        <div id="device-cards-list" class="space-y-2"></div>
+        <div class="border-t pt-3 mt-3">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Add New Device</span>
+                <button onclick="toggleAddForm()" id="add-toggle-btn" class="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700 transition flex items-center gap-1"><i class="fas fa-plus text-xs" id="add-toggle-icon"></i><span id="add-toggle-label">Add Device</span></button>
+            </div>
+            <div id="add-device-form" class="hidden">
+                <div class="bg-gray-50 rounded-lg p-3 border border-gray-200 slide-in">
+                    <div class="grid grid-cols-1 sm:grid-cols-5 gap-2">
+                        <div class="sm:col-span-2"><label class="block text-xs text-gray-500 mb-1">Device ID</label><input type="text" id="new-device-id" placeholder="e.g., esp32_pir_01" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"></div>
+                        <div class="sm:col-span-2"><label class="block text-xs text-gray-500 mb-1">Device Name</label><input type="text" id="new-device-name" placeholder="e.g., Office" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" onkeydown="if(event.key==='Enter') addDevice()"></div>
+                        <div class="sm:col-span-1 flex items-end gap-1"><button onclick="addDevice()" class="flex-1 px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 transition shadow-sm font-medium"><i class="fas fa-plus mr-1"></i>Add</button><button onclick="toggleAddForm(true)" class="px-3 py-2 bg-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-300 transition"><i class="fas fa-times"></i></button></div>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-1.5">The Device ID must match what the ESP32 sends. Name is a friendly label.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Active Device Status Bar -->
+    <div id="active-device-bar" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 p-3 mb-4">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2 min-w-0"><div id="status-indicator" class="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0"></div><span id="status-text" class="text-sm font-medium text-gray-700 truncate">Not connected</span><span id="active-device-label" class="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-medium hidden sm:inline whitespace-nowrap"></span></div>
+            <div class="flex items-center gap-1.5 flex-shrink-0"><button onclick="refreshAll()" class="px-2.5 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs hover:bg-gray-200 transition flex items-center gap-1"><i class="fas fa-sync-alt text-xs"></i>Refresh</button></div>
+        </div>
+    </div>
+    <!-- Sensor Cards (Motion + Session) -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 mb-5">
+        <div class="bg-white rounded-xl shadow-md p-4 border-l-4 border-yellow-500 hover:shadow-lg transition">
+            <div class="flex items-center justify-between"><div class="flex items-center"><div class="w-9 h-9 rounded-full bg-yellow-100 flex items-center justify-center mr-2 flex-shrink-0"><i class="fas fa-person-walking text-yellow-600 text-sm"></i></div><div><h3 class="font-semibold text-sm text-gray-700">Motion Sensor</h3><p class="text-xs text-gray-500">PIR via server</p></div></div><div id="motion-icon" class="text-xl">⚫</div></div>
+            <div class="mt-2 flex items-center justify-between"><span class="text-xs text-gray-600">Status:</span><span id="motion-status" class="text-base font-bold text-gray-800">--</span></div>
+        </div>
+        <div class="bg-white rounded-xl shadow-md p-4 border-l-4 border-blue-500 hover:shadow-lg transition">
+            <div class="flex items-center justify-between"><div class="flex items-center"><div class="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center mr-2 flex-shrink-0"><i class="fas fa-lightbulb text-blue-600 text-sm"></i></div><div><h3 class="font-semibold text-sm text-gray-700">LED Control</h3><p class="text-xs text-gray-500">GPIO 18</p></div></div><div id="led-icon" class="text-xl">💡</div></div>
+            <div class="mt-2 grid grid-cols-2 gap-2 text-sm">
+                <div><span class="text-xs text-gray-500">Status:</span><span id="led-status" class="ml-1 text-sm font-bold text-gray-800">--</span></div>
+                <div><span class="text-xs text-gray-500">Session:</span><span class="ml-1 text-xs font-mono font-bold text-blue-600" id="current-duration">00:00:00</span></div>
+            </div>
+            <div class="mt-2 flex items-center justify-between bg-blue-50 p-1.5 rounded-lg">
+                <span class="text-xs font-medium text-gray-600">Manual Override:</span>
+                <div class="flex items-center">
+                    <label class="relative inline-flex items-center cursor-pointer mr-1">
+                        <input type="checkbox" id="led-toggle" class="sr-only peer" onchange="toggleLed()">
+                        <div class="w-10 h-5 bg-gray-300 peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                    <span id="toggle-label" class="text-xs font-medium text-gray-700 w-7">OFF</span>
+                </div>
+            </div>
+            <div id="override-badge" class="mt-1 hidden flex items-center justify-between"><span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800"><i class="fas fa-hand-paper mr-1"></i>Manual Override</span><button onclick="setAutoMode()" class="px-2 py-0.5 bg-blue-600 text-white rounded-full text-xs hover:bg-blue-700 transition"><i class="fas fa-robot mr-1"></i>Back to Auto</button></div>
+        </div>
+    </div>
+    <!-- Statistics Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 mb-5">
+        <div class="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl shadow-md p-3 text-white"><div class="flex items-center justify-between mb-1"><h3 class="text-xs font-semibold uppercase tracking-wider opacity-90">Total</h3><i class="fas fa-clock text-sm opacity-75"></i></div><div class="text-base md:text-lg font-mono font-bold mb-0.5 truncate" id="total-occupancy">00:00:00</div><div class="text-xs opacity-75">Lifetime</div></div>
+        <div class="bg-gradient-to-br from-green-600 to-green-700 rounded-xl shadow-md p-3 text-white"><div class="flex items-center justify-between mb-1"><h3 class="text-xs font-semibold uppercase tracking-wider opacity-90">Today</h3><i class="fas fa-calendar-day text-sm opacity-75"></i></div><div class="text-base md:text-lg font-mono font-bold mb-0.5 truncate" id="today-occupancy">00:00:00</div><div class="text-xs opacity-75" id="today-date"></div></div>
+        <div class="bg-gradient-to-br from-purple-600 to-purple-700 rounded-xl shadow-md p-3 text-white"><div class="flex items-center justify-between mb-1"><h3 class="text-xs font-semibold uppercase tracking-wider opacity-90">This Week</h3><i class="fas fa-calendar-week text-sm opacity-75"></i></div><div class="text-base md:text-lg font-mono font-bold mb-0.5 truncate" id="week-occupancy">00:00:00</div><div class="text-xs opacity-75 truncate" id="week-range"></div></div>
+        <div class="bg-gradient-to-br from-orange-600 to-orange-700 rounded-xl shadow-md p-3 text-white"><div class="flex items-center justify-between mb-1"><h3 class="text-xs font-semibold uppercase tracking-wider opacity-90">This Month</h3><i class="fas fa-calendar-alt text-sm opacity-75"></i></div><div class="text-base md:text-lg font-mono font-bold mb-0.5 truncate" id="month-occupancy">00:00:00</div><div class="text-xs opacity-75 truncate" id="month-name"></div></div>
+    </div>
+    <!-- Analytics -->
+    <div class="bg-white rounded-xl shadow-lg p-4 md:p-5 mb-5">
+        <div class="flex flex-col md:flex-row md:items-center justify-between mb-4 border-b pb-3 gap-2">
+            <div class="flex flex-wrap items-center gap-2"><h3 class="font-bold text-gray-800 flex items-center text-sm md:text-base"><i class="fas fa-chart-line text-green-500 mr-1"></i>Occupancy Analytics</h3><div class="flex flex-nowrap gap-1 overflow-x-auto pb-0.5" id="chart-device-tabs"></div></div>
+            <div class="flex flex-wrap gap-1.5">
+                <button onclick="refreshGraphData()" class="px-2.5 py-1.5 bg-indigo-600 text-white rounded-lg text-xs hover:bg-indigo-700 transition shadow-sm flex items-center"><i class="fas fa-chart-line mr-1 text-xs"></i>Refresh</button>
+                <select id="time-range" onchange="updateChart()" class="px-2.5 py-1.5 border rounded-lg text-xs bg-white focus:ring-2 focus:ring-indigo-400"><option value="minute">By Minute</option><option value="hourly">Hourly</option><option value="daily" selected>Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="yearly">Yearly</option></select>
+                <button onclick="exportGraphAsPNG()" class="px-2.5 py-1.5 bg-purple-600 text-white rounded-lg text-xs hover:bg-purple-700 transition shadow-sm"><i class="fas fa-camera mr-1 text-xs"></i>PNG</button>
+                <button onclick="exportGraphData()" class="px-2.5 py-1.5 bg-blue-600 text-white rounded-lg text-xs hover:bg-blue-700 transition shadow-sm"><i class="fas fa-download mr-1 text-xs"></i>CSV</button>
+                <button onclick="confirmResetData()" class="px-2.5 py-1.5 bg-red-600 text-white rounded-lg text-xs hover:bg-red-700 transition shadow-sm"><i class="fas fa-trash-alt mr-1 text-xs"></i>Reset</button>
+            </div>
+        </div>
+        <div class="h-56 md:h-64 mb-4 relative" id="graph-container"><canvas id="mainChart"></canvas></div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+            <div class="bg-gray-50 p-2 rounded-lg"><span class="text-xs text-gray-500">Total in period</span><div class="text-sm md:text-base font-bold text-gray-800 truncate" id="period-total">00:00:00</div></div>
+            <div class="bg-gray-50 p-2 rounded-lg"><span class="text-xs text-gray-500">Average</span><div class="text-sm md:text-base font-bold text-gray-800 truncate" id="period-average">00:00:00</div></div>
+            <div class="bg-gray-50 p-2 rounded-lg"><span class="text-xs text-gray-500">Peak interval</span><div class="text-sm md:text-base font-bold text-gray-800 truncate" id="period-peak">00:00:00</div></div>
+            <div class="bg-gray-50 p-2 rounded-lg"><span class="text-xs text-gray-500">Intervals</span><div class="text-sm md:text-base font-bold text-gray-800" id="period-intervals">0</div></div>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div class="border rounded-lg p-1.5 bg-gray-50"><h4 class="text-xs font-medium mb-1 text-gray-600">Last 7 Days</h4><div class="h-10"><canvas id="weekMiniChart"></canvas></div></div>
+            <div class="border rounded-lg p-1.5 bg-gray-50"><h4 class="text-xs font-medium mb-1 text-gray-600">Last 4 Weeks</h4><div class="h-10"><canvas id="monthMiniChart"></canvas></div></div>
+            <div class="border rounded-lg p-1.5 bg-gray-50"><h4 class="text-xs font-medium mb-1 text-gray-600">Last 3 Months</h4><div class="h-10"><canvas id="quarterMiniChart"></canvas></div></div>
+            <div class="border rounded-lg p-1.5 bg-gray-50"><h4 class="text-xs font-medium mb-1 text-gray-600">Last 12 Months</h4><div class="h-10"><canvas id="yearMiniChart"></canvas></div></div>
+        </div>
+    </div>
+    <!-- Bottom Row -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div class="lg:col-span-2 bg-white rounded-xl shadow-lg p-4">
+            <div class="flex items-center justify-between mb-3 border-b pb-1.5"><h3 class="font-bold text-gray-800 flex items-center text-sm"><i class="fas fa-history text-blue-500 mr-1"></i>Recent Sessions<span id="sessions-device-label" class="ml-2 text-xs text-gray-400 font-normal"></span></h3><button onclick="exportSessionsToCSV()" class="px-2.5 py-1.5 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700 transition shadow-sm"><i class="fas fa-file-csv mr-1"></i>Export</button></div>
+            <div class="table-wrap max-h-64 overflow-y-auto border rounded-lg"><table class="min-w-full divide-y divide-gray-200 text-xs"><thead class="bg-gray-50 sticky top-0"><tr><th class="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">Device</th><th class="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">Date</th><th class="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">Start</th><th class="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">End</th><th class="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">Duration</th><th class="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">Source</th></tr></thead><tbody id="sessions-table-body" class="bg-white divide-y divide-gray-200"></tbody></table></div>
+        </div>
+        <div class="bg-white rounded-xl shadow-lg p-4 flex flex-col">
+            <h3 class="font-bold text-gray-800 mb-2 flex items-center border-b pb-1.5 text-sm"><i class="fas fa-microchip mr-1 text-gray-500"></i>System Status</h3>
+            <div class="space-y-1.5 text-xs mb-3">
+                <div class="flex justify-between items-center py-0.5"><span class="text-gray-500">Active Device:</span><span id="sys-active-device" class="font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded truncate max-w-28">none</span></div>
+                <div class="flex justify-between items-center py-0.5"><span class="text-gray-500">Motion:</span><span id="sys-motion" class="font-semibold text-gray-800 bg-gray-100 px-2 py-0.5 rounded">--</span></div>
+                <div class="flex justify-between items-center py-0.5"><span class="text-gray-500">Active Sessions:</span><span id="sys-active-sessions" class="font-bold text-green-600">0</span></div>
+                <div class="flex justify-between items-center py-0.5"><span class="text-gray-500">Devices:</span><span id="sys-device-count" class="font-bold text-indigo-600">0</span></div>
+                <div class="flex justify-between items-center py-0.5"><span class="text-gray-500">Last Update:</span><span id="last-update" class="text-xs text-gray-500">--</span></div>
+                <div class="flex justify-between items-center py-0.5"><span class="text-gray-500">Total Sessions:</span><span id="total-sessions-status" class="font-bold text-purple-600">0</span></div>
+            </div>
+            <div class="border-t pt-2 mb-3 flex flex-col flex-1">
+                <div class="flex items-center justify-between mb-1"><span class="text-xs font-semibold text-gray-500 flex items-center gap-1"><i class="fas fa-terminal text-gray-400 text-xs"></i>Last Event<span id="api-device-label" class="font-normal text-gray-400 ml-1 truncate max-w-20"></span></span><div class="flex items-center gap-1"><span class="text-xs bg-gray-100 px-1.5 py-0.5 rounded text-gray-500">JSON</span><button onclick="copyToClipboard()" class="text-gray-400 hover:text-green-500 transition p-1" title="Copy"><i class="far fa-copy text-xs"></i></button></div></div>
+                <pre id="raw-data" class="bg-gray-900 text-green-400 p-2 rounded-lg text-xs overflow-auto font-mono flex-1" style="min-height:80px;max-height:160px;">Waiting for data...</pre>
+            </div>
+            <div class="space-y-1.5 mt-auto">
+                <button onclick="toggleAutoRefresh()" id="auto-refresh-btn" class="w-full px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition shadow-sm text-xs font-medium"><i class="fas fa-play mr-1"></i>Auto Refresh: ON</button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Edit Device Modal -->
+<div id="edit-modal" class="hidden fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50"><div class="bg-white rounded-xl shadow-xl p-5 w-80"><h3 class="font-bold text-gray-800 mb-3 text-sm"><i class="fas fa-edit mr-1"></i>Edit Device Name</h3><input type="hidden" id="edit-device-id"><label class="block text-xs text-gray-500 mb-1">Device Name</label><input type="text" id="edit-device-name" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-indigo-400" onkeydown="if(event.key==='Enter') saveDeviceEdit()"><div class="flex gap-2"><button onclick="saveDeviceEdit()" class="flex-1 px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 transition font-medium"><i class="fas fa-check mr-1"></i>Save</button><button onclick="closeEditModal()" class="px-3 py-2 bg-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-300 transition"><i class="fas fa-times mr-1"></i>Cancel</button></div></div></div>
+<script>
+const API='/api/pir';const $=id=>document.getElementById(id);function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}function debounce(fn,w){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),w);};}
+function formatDuration(s){if(isNaN(s)||s<0)s=0;return String(Math.floor(s/3600)).padStart(2,'0')+':'+String(Math.floor((s%3600)/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');}
+let devices=[],activeDeviceId=null,chartDeviceFilter='all',sessions=[],activeSessions=[],stats={},autoRefresh=true,refreshInterval=null,addFormOpen=false;
+let mainChart=null,weekMiniChart=null,monthMiniChart=null,quarterMiniChart=null,yearMiniChart=null;
+async function api(path,opts){const r=await fetch(API+path,opts);if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}
+async function loadDevices(){try{devices=await api('/devices');$('sys-device-count').innerText=devices.length;renderDeviceUI();}catch(e){console.error('loadDevices:',e);}}
+function renderDeviceUI(){const tabsEl=$('device-tabs'),cardsEl=$('device-cards-list'),noMsg=$('no-devices-msg');if(!devices.length){tabsEl.innerHTML='';cardsEl.innerHTML='';noMsg.classList.remove('hidden');$('active-device-bar').classList.add('hidden');return;}noMsg.classList.add('hidden');
+tabsEl.innerHTML=devices.map(d=>{const a=activeDeviceId===d.device_id;return`<button data-select-id="${d.device_id}" class="dev-tab ${a?'active-tab':'border border-gray-200 bg-gray-50 text-gray-700'} px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 flex-shrink-0"><span class="w-2 h-2 rounded-full flex-shrink-0 ${d.connected?'bg-green-500':'bg-red-400'}"></span>${esc(d.device_name||d.device_id)}<span class="${a?'opacity-70':'opacity-50'} text-xs hidden sm:inline">${esc(d.device_id)}</span></button>`;}).join('');
+cardsEl.innerHTML=devices.map(d=>{const a=activeDeviceId===d.device_id;const ls=d.last_seen?`<span class="text-xs text-gray-300 ml-1 hidden md:inline">· ${new Date(d.last_seen+'Z').toLocaleTimeString()}</span>`:'';return`<div class="device-card border rounded-lg p-2.5 ${a?'active-card border-indigo-200':'border-gray-100 bg-gray-50'} slide-in"><div class="flex items-center justify-between gap-2"><div data-select-id="${d.device_id}" class="flex items-center gap-2 cursor-pointer flex-1 min-w-0"><div class="w-2.5 h-2.5 rounded-full flex-shrink-0 '+(d.connected?'bg-green-500 pulse-green':'bg-red-400 pulse-red')+'"></div><div class="min-w-0"><span class="font-semibold text-sm text-gray-800">${esc(d.device_name||d.device_id)}</span><span class="text-xs text-gray-400 ml-1 md:ml-2 font-mono">${esc(d.device_id)}</span>${ls}</div></div><div class="flex items-center gap-1 flex-shrink-0">${a?'<span class="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-medium hidden sm:inline">Active</span>':''}<button data-edit-id="${d.device_id}" title="Edit" class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition text-xs"><i class="fas fa-edit"></i></button><button data-remove-id="${d.device_id}" title="Remove" class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition text-xs"><i class="fas fa-trash-alt"></i></button></div></div></div>`;}).join('');
+updateChartDeviceTabs();}
+function updateChartDeviceTabs(){$('chart-device-tabs').innerHTML=`<button data-chart-id="all" class="dev-tab ${chartDeviceFilter==='all'?'active-tab':'border border-gray-200 bg-gray-50 text-gray-700'} px-2 py-0.5 rounded-full text-xs font-medium border flex-shrink-0">All</button>`+devices.map(d=>`<button data-chart-id="${d.device_id}" class="dev-tab ${chartDeviceFilter===d.device_id?'active-tab':'border border-gray-200 bg-gray-50 text-gray-700'} px-2 py-0.5 rounded-full text-xs font-medium border flex-shrink-0">${esc(d.device_name||d.device_id)}</button>`).join('');}
+function selectDevice(id){activeDeviceId=id;const dev=devices.find(d=>d.device_id===id);if(!dev)return;$('active-device-bar').classList.remove('hidden');$('active-device-label').innerText=(dev.device_name||dev.device_id)+' · '+dev.device_id;$('api-device-label').innerText='— '+(dev.device_name||dev.device_id);$('sys-active-device').innerText=dev.device_name||dev.device_id;$('sessions-device-label').innerText='— '+(dev.device_name||dev.device_id);renderDeviceUI();refreshAll();}
+function setChartDevice(id){chartDeviceFilter=id;updateChartDeviceTabs();updateAllCharts();}
+function toggleAddForm(fc){addFormOpen=fc===true?false:!addFormOpen;const form=$('add-device-form'),icon=$('add-toggle-icon'),label=$('add-toggle-label'),btn=$('add-toggle-btn');if(addFormOpen){form.classList.remove('hidden');icon.className='fas fa-times text-xs';label.innerText='Cancel';btn.className='px-3 py-1.5 bg-gray-500 text-white rounded-lg text-xs hover:bg-gray-600 transition flex items-center gap-1';setTimeout(()=>$('new-device-id').focus(),50);}else{form.classList.add('hidden');icon.className='fas fa-plus text-xs';label.innerText='Add Device';btn.className='px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700 transition flex items-center gap-1';}}
+async function addDevice(){const id=$('new-device-id').value.trim(),name=$('new-device-name').value.trim();if(!id){alert('Please enter a Device ID');return;}if(devices.find(d=>d.device_id===id)){alert('Device already exists');return;}try{await fetch(API+'/ingest',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({device_id:id,device_name:name||id,motion_detected:false})});$('new-device-id').value='';$('new-device-name').value='';toggleAddForm(true);await loadDevices();if(devices.length===1)selectDevice(id);}catch(e){alert('Failed: '+e.message);}}
+async function removeDevice(id){const dev=devices.find(d=>d.device_id===id);if(!dev||!confirm(`Remove "${dev.device_name||id}" and all its sessions?`))return;try{await api('/sessions?device_id='+encodeURIComponent(id),{method:'DELETE'});await loadDevices();if(activeDeviceId===id){activeDeviceId=devices.length?devices[0].device_id:null;if(activeDeviceId)selectDevice(activeDeviceId);else{$('active-device-bar').classList.add('hidden');renderDeviceUI();}}}catch(e){alert('Error: '+e.message);}}
+function openEditModal(id){const dev=devices.find(d=>d.device_id===id);if(!dev)return;$('edit-device-id').value=id;$('edit-device-name').value=dev.device_name||'';$('edit-modal').classList.remove('hidden');setTimeout(()=>$('edit-device-name').focus(),50);}
+function closeEditModal(){$('edit-modal').classList.add('hidden');}
+async function saveDeviceEdit(){const id=$('edit-device-id').value,name=$('edit-device-name').value.trim();if(!name){alert('Name cannot be empty');return;}try{await fetch(API+'/ingest',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({device_id:id,device_name:name,motion_detected:false})});closeEditModal();await loadDevices();if(activeDeviceId===id)selectDevice(id);}catch(e){alert('Error: '+e.message);}}
+async function loadSessions(){try{const params=new URLSearchParams({hours:8760,limit:5000});if(activeDeviceId)params.set('device_id',activeDeviceId);sessions=await api('/sessions?'+params.toString());}catch(e){console.error(e);}}
+async function loadActiveSessions(){try{const p=activeDeviceId?'?device_id='+encodeURIComponent(activeDeviceId):'';activeSessions=await api('/sessions/active'+p);$('sys-active-sessions').innerText=activeSessions.length;if(activeSessions.length>0){const s=activeSessions[0];$('motion-status').innerText='ACTIVE';$('motion-icon').innerText='🚶';$('sys-motion').innerText='YES';$('status-indicator').className='w-2.5 h-2.5 rounded-full bg-green-500 flex-shrink-0';const dev=devices.find(d=>d.device_id===s.device_id);$('status-text').innerText='Session active · '+(dev?dev.device_name||dev.device_id:s.device_id);}else{$('motion-status').innerText='CLEAR';$('motion-icon').innerText='⚫';$('sys-motion').innerText='no';$('status-indicator').className='w-2.5 h-2.5 rounded-full bg-gray-400 flex-shrink-0';$('status-text').innerText='Idle';$('current-duration').innerText='00:00:00';}}catch(e){console.error(e);}}
+async function loadStats(){try{const p=activeDeviceId?'?device_id='+encodeURIComponent(activeDeviceId):'';stats=await api('/stats'+p);$('total-occupancy').innerText=formatDuration(stats.total_seconds||0);$('today-occupancy').innerText=formatDuration(stats.today_seconds||0);$('week-occupancy').innerText=formatDuration(stats.week_seconds||0);$('month-occupancy').innerText=formatDuration(stats.month_seconds||0);$('session-count').innerText=stats.total_sessions||0;$('total-sessions-status').innerText=stats.total_sessions||0;}catch(e){console.error(e);}}
+async function loadLastEvent(){try{const p=new URLSearchParams({hours:1,limit:1});if(activeDeviceId)p.set('device_id',activeDeviceId);const events=await api('/events?'+p.toString());if(events.length)$('raw-data').innerText=JSON.stringify(events[0],null,2);}catch(e){}}
+async function refreshAll(){await Promise.all([loadDevices(),loadSessions(),loadActiveSessions(),loadStats(),loadLastEvent()]);$('last-update').innerText=new Date().toLocaleTimeString();updateSessionsTable();updateAllCharts();
+    const activeDev=devices.find(d=>d.device_id===activeDeviceId);
+    if(activeDev&&!activeDev.connected){
+        $('status-indicator').className='w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0';
+        $('status-text').innerText='Offline · '+(activeDev.device_name||activeDev.device_id);
+        $('motion-status').innerText='OFFLINE';$('motion-icon').innerText='🔴';
+        $('led-status').innerText='--';$('led-icon').innerText='⚫';
+    }}
+function updateSessionsTable(){const recent=sessions.slice(0,30);if(!recent.length){$('sessions-table-body').innerHTML='<tr><td colspan="6" class="px-4 py-4 text-center text-gray-500">No sessions yet</td></tr>';return;}$('sessions-table-body').innerHTML=recent.map(s=>{const start=new Date(s.start_time+'Z');const end=s.end_time?new Date(s.end_time+'Z'):null;const dev=devices.find(d=>d.device_id===s.device_id);return`<tr class="hover:bg-gray-50"><td class="px-3 py-2 whitespace-nowrap"><span class="text-xs bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded">${esc(dev?dev.device_name:s.device_id)}</span></td><td class="px-3 py-2 whitespace-nowrap">${start.toLocaleDateString()}</td><td class="px-3 py-2 whitespace-nowrap">${start.toLocaleTimeString()}</td><td class="px-3 py-2 whitespace-nowrap">${end?end.toLocaleTimeString():'<span class="text-green-600 font-semibold">active</span>'}</td><td class="px-3 py-2 whitespace-nowrap font-mono">${formatDuration(s.duration_seconds||0)}</td><td class="px-3 py-2 whitespace-nowrap">${s.source==='manual'?'👆':'🤖'} ${s.source||'auto'}</td></tr>`;}).join('');}
+function aggregateSessions(sess,ranges){return ranges.map(({start,end})=>Math.round(sess.reduce((sum,s)=>{const ss=new Date(s.start_time+'Z').getTime();const se=new Date(s.end_time+'Z').getTime();return sum+Math.max(0,(Math.min(se,end.getTime())-Math.max(ss,start.getTime()))/1000);},0)));}
+function initCharts(){try{if(typeof ChartDataLabels!=='undefined')Chart.register(ChartDataLabels);}catch(e){}mainChart=new Chart($('mainChart').getContext('2d'),{type:'bar',data:{labels:[],datasets:[{label:'Occupancy',data:[],backgroundColor:'rgba(99,102,241,.7)',borderColor:'rgb(99,102,241)',borderWidth:1,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:20,bottom:10}},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>'Duration: '+formatDuration(c.raw)}},datalabels:{display:c=>c.dataset.data[c.dataIndex]>0,align:'end',anchor:'end',offset:4,font:{size:10},formatter:v=>v<60?v+'s':v<3600?Math.floor(v/60)+'m':Math.floor(v/3600)+'h'}},scales:{y:{beginAtZero:true,title:{display:true,text:'Duration'},ticks:{callback:v=>v<60?v+'s':v<3600?Math.floor(v/60)+'m':Math.floor(v/3600)+'h'}}}}});
+const mkMini=(id,color,bg)=>new Chart($(id).getContext('2d'),{type:'line',data:{labels:[],datasets:[{data:[],borderColor:color,backgroundColor:bg,tension:.2,pointRadius:1,borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false},datalabels:{display:false}},scales:{x:{display:false},y:{display:false,beginAtZero:true}}}});
+weekMiniChart=mkMini('weekMiniChart','#3b82f6','rgba(59,130,246,.1)');monthMiniChart=mkMini('monthMiniChart','#8b5cf6','rgba(139,92,246,.1)');quarterMiniChart=mkMini('quarterMiniChart','#ec4899','rgba(236,72,153,.1)');yearMiniChart=mkMini('yearMiniChart','#f59e0b','rgba(245,158,11,.1)');updateAllCharts();}
+function getChartSessions(){return chartDeviceFilter==='all'?sessions:sessions.filter(s=>s.device_id===chartDeviceFilter);}
+function updateChart(){if(!mainChart)return;const sess=getChartSessions().filter(s=>s.end_time);const range=$('time-range').value;const now=new Date();let labels=[],ranges=[];switch(range){case'minute':for(let i=59;i>=0;i--){const s=new Date(now);s.setMinutes(now.getMinutes()-i);s.setSeconds(0,0);const e=new Date(s);e.setMinutes(s.getMinutes()+1);labels.push(s.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));ranges.push({start:s,end:e});}break;case'hourly':for(let i=23;i>=0;i--){const s=new Date(now);s.setHours(now.getHours()-i);s.setMinutes(0,0,0);const e=new Date(s);e.setHours(s.getHours()+1);labels.push(s.toLocaleTimeString([],{hour:'2-digit'}));ranges.push({start:s,end:e});}break;case'daily':for(let i=29;i>=0;i--){const s=new Date(now);s.setDate(now.getDate()-i);s.setHours(0,0,0,0);const e=new Date(s);e.setDate(s.getDate()+1);labels.push(s.toLocaleDateString([],{month:'short',day:'numeric'}));ranges.push({start:s,end:e});}break;case'weekly':for(let i=11;i>=0;i--){const s=new Date(now);s.setDate(now.getDate()-(now.getDay()+i*7));s.setHours(0,0,0,0);const e=new Date(s);e.setDate(s.getDate()+7);labels.push('W'+(12-i));ranges.push({start:s,end:e});}break;case'monthly':for(let i=11;i>=0;i--){const s=new Date(now.getFullYear(),now.getMonth()-i,1);const e=new Date(s.getFullYear(),s.getMonth()+1,1);labels.push(s.toLocaleDateString([],{month:'short'}));ranges.push({start:s,end:e});}break;case'quarterly':for(let i=3;i>=0;i--){const s=new Date(now.getFullYear(),now.getMonth()-(i*3),1);const e=new Date(s.getFullYear(),s.getMonth()+3,1);labels.push('Q'+(Math.floor(s.getMonth()/3)+1)+' '+s.getFullYear());ranges.push({start:s,end:e});}break;case'yearly':[...new Set(sess.map(s=>new Date(s.start_time+'Z').getFullYear()))].sort().forEach(y=>{labels.push(String(y));ranges.push({start:new Date(y,0,1),end:new Date(y+1,0,1)});});if(!labels.length){labels.push(String(now.getFullYear()));ranges.push({start:new Date(now.getFullYear(),0,1),end:new Date(now.getFullYear()+1,0,1)});}break;}
+const data=aggregateSessions(sess,ranges);const total=data.reduce((a,b)=>a+b,0),peak=Math.max(...data,0);mainChart.data.labels=labels;mainChart.data.datasets[0].data=data;mainChart.update();$('period-total').innerText=formatDuration(total);$('period-average').innerText=formatDuration(data.length>0?Math.round(total/data.length):0);$('period-peak').innerText=formatDuration(peak);$('period-intervals').innerText=data.length;}
+function updateMiniCharts(){if(!weekMiniChart)return;const now=new Date(),sess=getChartSessions().filter(s=>s.end_time);const mkR=(n,fn)=>Array.from({length:n},(_,i)=>fn(i)).reverse();const upd=(chart,ranges,div)=>{const d=aggregateSessions(sess,ranges).map(s=>Math.round(s/div));chart.data.labels=d.map((_,i)=>i);chart.data.datasets[0].data=d;chart.update();};
+upd(weekMiniChart,mkR(7,i=>{const s=new Date(now);s.setDate(now.getDate()-i);s.setHours(0,0,0,0);const e=new Date(s);e.setDate(s.getDate()+1);return{start:s,end:e};}),60);
+upd(monthMiniChart,mkR(4,i=>{const s=new Date(now);s.setDate(now.getDate()-(now.getDay()+i*7));s.setHours(0,0,0,0);const e=new Date(s);e.setDate(s.getDate()+7);return{start:s,end:e};}),3600);
+upd(quarterMiniChart,mkR(3,i=>{const s=new Date(now.getFullYear(),now.getMonth()-i,1);const e=new Date(s.getFullYear(),s.getMonth()+1,1);return{start:s,end:e};}),3600);
+upd(yearMiniChart,mkR(12,i=>{const s=new Date(now.getFullYear(),now.getMonth()-i,1);const e=new Date(s.getFullYear(),s.getMonth()+1,1);return{start:s,end:e};}),3600);}
+const updateAllCharts=debounce(function(){updateChart();updateMiniCharts();},100);
+function refreshGraphData(){const btn=event.currentTarget||event.target;btn.innerHTML='<i class="fas fa-spinner fa-spin mr-1"></i>Refreshing...';btn.disabled=true;refreshAll();setTimeout(()=>{btn.innerHTML='<i class="fas fa-chart-line mr-1"></i>Refresh';btn.disabled=false;},500);}
+function exportSessionsToCSV(){if(!sessions.length){alert('No sessions');return;}let csv='Device,Start,End,Duration (s),Duration (HH:MM:SS),Source\n';sessions.forEach(s=>{const dev=devices.find(d=>d.device_id===s.device_id);csv+=`"${dev?dev.device_name:s.device_id}","${s.start_time}","${s.end_time||''}",${s.duration_seconds},"${formatDuration(s.duration_seconds)}","${s.source}"\n`;});saveAs(new Blob([csv],{type:'text/csv'}),`pir_sessions_${new Date().toISOString().slice(0,10)}.csv`);}
+function exportGraphData(){if(!mainChart)return;let csv='Interval,Duration (seconds),Duration (HH:MM:SS)\n';mainChart.data.labels.forEach((l,i)=>{const s=mainChart.data.datasets[0].data[i];csv+='"'+l+'",'+s+',"'+formatDuration(s)+'"\n';});saveAs(new Blob([csv],{type:'text/csv'}),`pir_graph_${$('time-range').value}_${new Date().toISOString().slice(0,10)}.csv`);}
+function exportGraphAsPNG(){html2canvas($('graph-container')).then(c=>{const a=document.createElement('a');a.download='pir_'+$('time-range').value+'_'+new Date().toISOString().slice(0,10)+'.png';a.href=c.toDataURL();a.click();});}
+async function confirmResetData(){if(!confirm('Delete ALL PIR session data? This cannot be undone.'))return;try{await api('/sessions',{method:'DELETE'});sessions=[];updateSessionsTable();updateAllCharts();loadStats();}catch(e){alert('Error: '+e.message);}}
+function copyToClipboard(){navigator.clipboard?.writeText($('raw-data').innerText).catch(()=>{});}
+function toggleAutoRefresh(){autoRefresh=!autoRefresh;const btn=$('auto-refresh-btn');if(autoRefresh){btn.className='w-full px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition shadow-sm text-xs font-medium';btn.innerHTML='<i class="fas fa-play mr-1"></i>Auto Refresh: ON';startPolling();}else{btn.className='w-full px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition shadow-sm text-xs font-medium';btn.innerHTML='<i class="fas fa-pause mr-1"></i>Auto Refresh: OFF';if(refreshInterval){clearInterval(refreshInterval);refreshInterval=null;}}}
+function startPolling(){if(refreshInterval)clearInterval(refreshInterval);refreshInterval=setInterval(()=>{if(autoRefresh)refreshAll();},5000);}
+setInterval(()=>{if(activeSessions.length>0){const s=activeSessions[0];const start=new Date(s.start_time+'Z');$('current-duration').innerText=formatDuration(Math.floor((Date.now()-start.getTime())/1000));}},1000);
+
+
+async function setAutoMode(){
+    const dev=devices.find(d=>d.device_id===activeDeviceId);
+    if(!dev){alert('Select a device first');return;}
+    try{
+        const ctrl=new AbortController();setTimeout(()=>ctrl.abort(),5000);
+        const r=await fetch('http://'+dev.device_id+'.local/api/led/control',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'auto'}),mode:'cors',signal:ctrl.signal});
+        if(!r.ok)throw new Error('HTTP '+r.status);
+        $('override-badge').classList.add('hidden');
+    }catch(e){alert('Cannot reach device: '+e.message);}
+}
+
+async function toggleLed(){
+    const dev=devices.find(d=>d.device_id===activeDeviceId);
+    if(!dev){alert('Select a device first');$('led-toggle').checked=false;return;}
+    const target=$('led-toggle').checked?'on':'off';
+    $('toggle-label').innerText=target==='on'?'ON':'OFF';
+    try{
+        const ctrl=new AbortController();setTimeout(()=>ctrl.abort(),5000);
+        const r=await fetch('http://'+dev.device_id+'.local/api/led/control',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({led:target}),mode:'cors',signal:ctrl.signal});
+        if(!r.ok)throw new Error('HTTP '+r.status);
+        $('led-status').innerText=target==='on'?'ON':'OFF';
+        $('led-icon').innerText=target==='on'?'💡':'⚫';
+        $('override-badge').classList.toggle('hidden',target!=='on');
+    }catch(e){
+        $('led-toggle').checked=!$('led-toggle').checked;
+        $('toggle-label').innerText=$('led-toggle').checked?'ON':'OFF';
+        alert('Cannot reach device: '+e.message);
+    }
+}
+
+document.addEventListener('click',function(e){const selBtn=e.target.closest('[data-select-id]'),editBtn=e.target.closest('[data-edit-id]'),removeBtn=e.target.closest('[data-remove-id]'),chartBtn=e.target.closest('[data-chart-id]');if(selBtn)selectDevice(selBtn.dataset.selectId);if(editBtn){e.stopPropagation();openEditModal(editBtn.dataset.editId);}if(removeBtn){e.stopPropagation();removeDevice(removeBtn.dataset.removeId);}if(chartBtn)setChartDevice(chartBtn.dataset.chartId);});
+window.onload=async()=>{const today=new Date();$('today-date').innerText=today.toLocaleDateString();const wS=new Date(today);wS.setDate(today.getDate()-today.getDay());const wE=new Date(wS);wE.setDate(wS.getDate()+6);$('week-range').innerText=wS.toLocaleDateString()+' – '+wE.toLocaleDateString();$('month-name').innerText=today.toLocaleString('default',{month:'long',year:'numeric'});initCharts();await loadDevices();if(devices.length){activeDeviceId=devices[0].device_id;selectDevice(activeDeviceId);}else{await refreshAll();}startPolling();window.addEventListener('beforeunload',()=>{if(refreshInterval)clearInterval(refreshInterval);});};
+</script>
+</body>
+</html>

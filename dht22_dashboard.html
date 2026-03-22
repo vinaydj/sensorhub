@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DHT22 Analytics – SensorHub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        @keyframes pulse-green { 0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.5)} 50%{box-shadow:0 0 0 6px rgba(34,197,94,0)} }
+        @keyframes pulse-red   { 0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.5)}  50%{box-shadow:0 0 0 6px rgba(239,68,68,0)} }
+        @keyframes slide-in    { from{opacity:0;transform:translateY(-5px)} to{opacity:1;transform:translateY(0)} }
+        .pulse-green { animation: pulse-green 2s infinite; }
+        .pulse-red   { animation: pulse-red   2s infinite; }
+        .slide-in    { animation: slide-in .18s ease; }
+        .dev-tab     { transition: all .15s; cursor: pointer; white-space: nowrap; }
+        .dev-tab:hover:not(.active-tab) { background: #e0e7ff; }
+        .dev-tab.active-tab { background: #3b82f6 !important; color: #fff !important; border-color: #3b82f6 !important; }
+        .device-card { transition: border-color .2s, background .2s; }
+        .active-card { background: #eff6ff !important; border-color: #93c5fd !important; }
+        .table-wrap  { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen p-3 md:p-6">
+<div class="max-w-7xl mx-auto">
+    <!-- Header -->
+    <div class="text-center mb-5">
+        <div class="flex items-center justify-center gap-3 mb-1">
+            <a href="/air/" class="text-xs text-gray-400 hover:text-green-600 transition flex items-center gap-1"><i class="fas fa-leaf"></i> Air Quality</a>
+            <a href="/pir/" class="text-xs text-gray-400 hover:text-indigo-600 transition flex items-center gap-1"><i class="fas fa-person-walking"></i> PIR</a>
+        </div>
+        <h1 class="text-xl md:text-3xl font-bold text-gray-800 mb-1">
+            <i class="fas fa-thermometer-half text-blue-500 mr-2"></i>DHT22 Analytics Dashboard
+        </h1>
+        <p class="text-xs md:text-sm text-gray-500">Real-time temperature &amp; humidity tracking across multiple sensors</p>
+    </div>
+    <!-- Multi-Device Manager -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-3 md:p-4 mb-4">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <h3 class="font-semibold text-gray-800 flex items-center text-sm"><i class="fas fa-network-wired text-indigo-500 mr-2"></i>Multi-Device Manager</h3>
+            <div class="flex flex-wrap gap-1.5">
+                <button onclick="refreshAllDevices()" class="px-2.5 py-1.5 bg-indigo-100 text-indigo-700 rounded-lg text-xs hover:bg-indigo-200 transition flex items-center gap-1"><i class="fas fa-sync-alt text-xs"></i> Refresh All</button>
+                <span class="text-xs bg-blue-50 text-blue-700 px-2.5 py-1.5 rounded-full font-medium flex items-center gap-1"><i class="fas fa-database mr-1"></i><span id="reading-count">0</span> readings</span>
+            </div>
+        </div>
+        <div class="flex flex-nowrap gap-1.5 mb-2 min-h-7 overflow-x-auto pb-1" id="device-tabs"></div>
+        <div id="no-devices-msg" class="text-center text-gray-400 text-sm py-4 border border-dashed border-gray-200 rounded-lg">No devices configured. Click <strong>Add Device</strong> to begin.</div>
+        <div id="device-cards-list" class="space-y-2"></div>
+        <div class="border-t pt-3 mt-3">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Add New Device</span>
+                <button onclick="toggleAddForm()" id="add-toggle-btn" class="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700 transition flex items-center gap-1"><i class="fas fa-plus text-xs" id="add-toggle-icon"></i><span id="add-toggle-label">Add Device</span></button>
+            </div>
+            <div id="add-device-form" class="hidden slide-in">
+                <div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                    <div class="grid grid-cols-1 sm:grid-cols-5 gap-2">
+                        <div class="sm:col-span-2"><label class="block text-xs text-gray-500 mb-1">Device Name</label><input type="text" id="new-device-name" placeholder="e.g., Living Room" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"></div>
+                        <div class="sm:col-span-2"><label class="block text-xs text-gray-500 mb-1">mDNS Hostname</label><input type="text" id="new-device-host" placeholder="e.g., dht22sensor.local" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400" onkeydown="if(event.key==='Enter') addDevice()"></div>
+                        <div class="sm:col-span-1 flex items-end gap-1"><button onclick="addDevice()" class="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition shadow-sm font-medium"><i class="fas fa-plug mr-1"></i>Add</button><button onclick="toggleAddForm(true)" class="px-3 py-2 bg-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-300 transition"><i class="fas fa-times"></i></button></div>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-1.5"><i class="fas fa-info-circle mr-1"></i>Examples: dht22sensor-1.local · bedroom.local · kitchen.local</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Active Device Bar -->
+    <div id="active-device-bar" class="hidden bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-2.5 mb-4 flex items-center justify-between">
+        <div class="flex items-center gap-2 min-w-0">
+            <div id="status-indicator" class="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0"></div>
+            <span id="status-text" class="text-sm font-medium text-indigo-800 truncate">No device selected</span>
+            <span id="active-device-label" class="text-xs text-indigo-500 hidden md:inline whitespace-nowrap"></span>
+        </div>
+        <div class="flex items-center gap-1.5 flex-shrink-0">
+            <button onclick="fetchData()" class="px-2.5 py-1.5 bg-white border border-indigo-200 text-indigo-700 rounded-lg text-xs hover:bg-indigo-50 transition flex items-center gap-1"><i class="fas fa-sync-alt text-xs"></i>Refresh</button>
+            <button onclick="testConnection()" class="px-2.5 py-1.5 bg-indigo-600 text-white rounded-lg text-xs hover:bg-indigo-700 transition flex items-center gap-1"><i class="fas fa-network-wired text-xs"></i>Test</button>
+            <span class="text-xs bg-white border border-indigo-200 text-indigo-700 px-2.5 py-1.5 rounded-full font-medium"><i class="fas fa-microchip mr-1"></i>DHT22</span>
+        </div>
+    </div>
+    <!-- Sensor Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 mb-5">
+        <div class="bg-white rounded-xl shadow-md p-4 border-l-4 border-red-500 hover:shadow-lg transition">
+            <div class="flex items-center justify-between"><div class="flex items-center"><div class="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center mr-2 flex-shrink-0"><i class="fas fa-thermometer-half text-red-600 text-sm"></i></div><div><h3 class="font-semibold text-sm text-gray-700">Temperature</h3><p class="text-xs text-gray-500">DHT22 Sensor</p></div></div><div id="temp-icon" class="text-xl flex-shrink-0">🌡️</div></div>
+            <div class="mt-2 flex items-center justify-between"><span class="text-xs text-gray-600">Current:</span><span id="temperature-display" class="text-base font-bold text-gray-800">-- °C</span></div>
+            <div class="mt-1 flex items-center justify-between"><span class="text-xs text-gray-600">Status:</span><span id="temp-status" class="text-xs font-semibold text-gray-700 bg-gray-100 px-2 py-0.5 rounded-full">--</span></div>
+        </div>
+        <div class="bg-white rounded-xl shadow-md p-4 border-l-4 border-blue-500 hover:shadow-lg transition">
+            <div class="flex items-center justify-between"><div class="flex items-center"><div class="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center mr-2 flex-shrink-0"><i class="fas fa-tint text-blue-600 text-sm"></i></div><div><h3 class="font-semibold text-sm text-gray-700">Humidity</h3><p class="text-xs text-gray-500">DHT22 Sensor</p></div></div><div id="hum-icon" class="text-xl flex-shrink-0">💧</div></div>
+            <div class="mt-2 flex items-center justify-between"><span class="text-xs text-gray-600">Current:</span><span id="humidity-display" class="text-base font-bold text-gray-800">-- %</span></div>
+            <div class="mt-1 flex items-center justify-between"><span class="text-xs text-gray-600">Status:</span><span id="hum-status" class="text-xs font-semibold text-gray-700 bg-gray-100 px-2 py-0.5 rounded-full">--</span></div>
+        </div>
+    </div>
+    <!-- Stat Cards: Min/Max -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 mb-5">
+        <div class="bg-gradient-to-br from-red-600 to-red-700 rounded-xl shadow-md p-3 text-white"><div class="flex items-center justify-between mb-1"><h3 class="text-xs font-semibold uppercase tracking-wider opacity-90">Min Temp</h3><i class="fas fa-temperature-low text-sm opacity-75"></i></div><div class="text-base md:text-lg font-mono font-bold mb-0.5 truncate" id="min-temp">--</div><div class="text-xs opacity-75">All time minimum</div></div>
+        <div class="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl shadow-md p-3 text-white"><div class="flex items-center justify-between mb-1"><h3 class="text-xs font-semibold uppercase tracking-wider opacity-90">Max Temp</h3><i class="fas fa-temperature-high text-sm opacity-75"></i></div><div class="text-base md:text-lg font-mono font-bold mb-0.5 truncate" id="max-temp">--</div><div class="text-xs opacity-75 truncate" id="max-temp-time">--</div></div>
+        <div class="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl shadow-md p-3 text-white"><div class="flex items-center justify-between mb-1"><h3 class="text-xs font-semibold uppercase tracking-wider opacity-90">Min Humidity</h3><i class="fas fa-tint text-sm opacity-75"></i></div><div class="text-base md:text-lg font-mono font-bold mb-0.5 truncate" id="min-hum">--</div><div class="text-xs opacity-75">All time minimum</div></div>
+        <div class="bg-gradient-to-br from-cyan-600 to-cyan-700 rounded-xl shadow-md p-3 text-white"><div class="flex items-center justify-between mb-1"><h3 class="text-xs font-semibold uppercase tracking-wider opacity-90">Max Humidity</h3><i class="fas fa-water text-sm opacity-75"></i></div><div class="text-base md:text-lg font-mono font-bold mb-0.5 truncate" id="max-hum">--</div><div class="text-xs opacity-75 truncate" id="max-hum-time">--</div></div>
+    </div>
+    <!-- Analytics -->
+    <div class="bg-white rounded-xl shadow-lg p-4 md:p-5 mb-5">
+        <div class="flex flex-col md:flex-row md:items-center justify-between mb-4 border-b pb-3 gap-2">
+            <div class="flex flex-wrap items-center gap-3"><h3 class="font-bold text-gray-800 flex items-center text-sm md:text-base"><i class="fas fa-chart-line text-blue-500 mr-1"></i>Sensor Analytics</h3><div class="flex items-center gap-3"><span class="flex items-center gap-1 text-xs font-semibold text-red-600"><span style="display:inline-block;width:20px;height:3px;background:rgb(239,68,68);border-radius:2px"></span>Temp (°C)</span><span class="flex items-center gap-1 text-xs font-semibold text-blue-600"><span style="display:inline-block;width:20px;height:3px;background:rgb(59,130,246);border-radius:2px"></span>Humidity (%)</span></div></div>
+            <div class="flex flex-wrap gap-1.5">
+                <button onclick="refreshGraphData()" class="px-2.5 py-1.5 bg-indigo-600 text-white rounded-lg text-xs hover:bg-indigo-700 transition shadow-sm flex items-center"><i class="fas fa-chart-line mr-1 text-xs"></i>Refresh</button>
+                <select id="time-range" onchange="updateAllCharts()" class="px-2.5 py-1.5 border rounded-lg text-xs bg-white focus:ring-2 focus:ring-blue-400"><option value="minute">By Minute</option><option value="hourly" selected>Hourly</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="yearly">Yearly</option></select>
+                <button onclick="exportGraphAsPNG()" class="px-2.5 py-1.5 bg-purple-600 text-white rounded-lg text-xs hover:bg-purple-700 transition shadow-sm"><i class="fas fa-camera mr-1 text-xs"></i>PNG</button>
+                <button onclick="exportGraphData()" class="px-2.5 py-1.5 bg-blue-600 text-white rounded-lg text-xs hover:bg-blue-700 transition shadow-sm"><i class="fas fa-download mr-1 text-xs"></i>CSV</button>
+                <button onclick="confirmResetData()" class="px-2.5 py-1.5 bg-red-600 text-white rounded-lg text-xs hover:bg-red-700 transition shadow-sm"><i class="fas fa-trash-alt mr-1 text-xs"></i>Reset</button>
+            </div>
+        </div>
+        <div id="chart-device-tabs" class="flex flex-nowrap gap-1.5 mb-3 overflow-x-auto pb-1"></div>
+        <div class="h-56 md:h-72 mb-4 relative" id="graph-container"><canvas id="mainChart"></canvas></div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+            <div class="border border-red-100 rounded-lg p-2 bg-red-50"><div class="flex items-center gap-1.5 mb-2"><div class="w-3 h-3 rounded-full bg-red-500"></div><span class="text-xs font-bold text-red-700 uppercase tracking-wide">Temperature</span></div><div class="grid grid-cols-3 gap-2"><div class="bg-white rounded p-1.5 text-center"><span class="text-xs text-gray-400 block">Avg</span><div class="text-sm font-bold text-red-700" id="period-avg-temp">--</div></div><div class="bg-white rounded p-1.5 text-center"><span class="text-xs text-gray-400 block">Min</span><div class="text-sm font-bold text-red-700" id="period-min-temp">--</div></div><div class="bg-white rounded p-1.5 text-center"><span class="text-xs text-gray-400 block">Max</span><div class="text-sm font-bold text-red-700" id="period-max-temp">--</div></div></div></div>
+            <div class="border border-blue-100 rounded-lg p-2 bg-blue-50"><div class="flex items-center gap-1.5 mb-2"><div class="w-3 h-3 rounded-full bg-blue-500"></div><span class="text-xs font-bold text-blue-700 uppercase tracking-wide">Humidity</span></div><div class="grid grid-cols-3 gap-2"><div class="bg-white rounded p-1.5 text-center"><span class="text-xs text-gray-400 block">Avg</span><div class="text-sm font-bold text-blue-700" id="period-avg-hum">--</div></div><div class="bg-white rounded p-1.5 text-center"><span class="text-xs text-gray-400 block">Min</span><div class="text-sm font-bold text-blue-700" id="period-min-hum">--</div></div><div class="bg-white rounded p-1.5 text-center"><span class="text-xs text-gray-400 block">Max</span><div class="text-sm font-bold text-blue-700" id="period-max-hum">--</div></div></div></div>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div class="border rounded-lg p-1.5 bg-gray-50"><h4 class="text-xs font-medium mb-1 text-gray-600">Last 7 Days</h4><div class="h-10"><canvas id="weekMiniChart"></canvas></div></div>
+            <div class="border rounded-lg p-1.5 bg-gray-50"><h4 class="text-xs font-medium mb-1 text-gray-600">Last 4 Weeks</h4><div class="h-10"><canvas id="monthMiniChart"></canvas></div></div>
+            <div class="border rounded-lg p-1.5 bg-gray-50"><h4 class="text-xs font-medium mb-1 text-gray-600">Last 3 Months</h4><div class="h-10"><canvas id="quarterMiniChart"></canvas></div></div>
+            <div class="border rounded-lg p-1.5 bg-gray-50"><h4 class="text-xs font-medium mb-1 text-gray-600">Last 12 Months</h4><div class="h-10"><canvas id="yearMiniChart"></canvas></div></div>
+        </div>
+    </div>
+    <!-- Bottom Row -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div class="lg:col-span-2 bg-white rounded-xl shadow-lg p-4">
+            <div class="flex items-center justify-between mb-3 border-b pb-1.5"><h3 class="font-bold text-gray-800 flex items-center text-sm"><i class="fas fa-history text-blue-500 mr-1"></i>Recent Readings<span class="ml-2 text-xs text-gray-400 font-normal" id="readings-device-label"></span></h3><button onclick="exportReadingsToCSV()" class="px-2.5 py-1.5 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700 transition shadow-sm"><i class="fas fa-file-csv mr-1"></i>Export</button></div>
+            <div class="table-wrap max-h-60 overflow-y-auto border rounded-lg"><table class="min-w-full divide-y divide-gray-200 text-xs"><thead class="bg-gray-50 sticky top-0"><tr><th class="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">Date</th><th class="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">Time</th><th class="px-3 py-2 text-left font-medium text-gray-400 uppercase tracking-wider">Device</th><th class="px-3 py-2 text-left font-medium text-red-500 uppercase tracking-wider">Temp °C</th><th class="px-3 py-2 text-left font-medium text-blue-500 uppercase tracking-wider">Humid %</th><th class="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">Status</th></tr></thead><tbody id="readings-table-body" class="bg-white divide-y divide-gray-200"></tbody></table></div>
+        </div>
+        <div class="bg-white rounded-xl shadow-lg p-4 flex flex-col">
+            <h3 class="font-bold text-gray-800 mb-3 flex items-center border-b pb-1.5 text-sm"><i class="fas fa-microchip mr-1 text-gray-500"></i>System Status</h3>
+            <div class="space-y-2 text-xs flex-1">
+                <div class="flex justify-between items-center py-0.5"><span class="text-gray-500">Active Device:</span><span id="sys-active-device" class="font-mono text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded truncate max-w-28">none</span></div>
+                <div class="flex justify-between items-center py-0.5"><span class="text-gray-500">Temperature:</span><span id="sys-temp" class="font-semibold text-red-700 bg-red-50 px-2 py-0.5 rounded">--</span></div>
+                <div class="flex justify-between items-center py-0.5"><span class="text-gray-500">Humidity:</span><span id="sys-hum" class="font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">--</span></div>
+                <div class="flex justify-between items-center py-0.5"><span class="text-gray-500">Sensor:</span><span class="font-mono text-xs text-gray-700">DHT22</span></div>
+                <div class="flex justify-between items-center py-0.5"><span class="text-gray-500">Sensor OK:</span><span id="sys-sensor-ok" class="font-mono text-xs text-gray-700">--</span></div>
+                <div class="flex justify-between items-center py-0.5"><span class="text-gray-500">Uptime:</span><span id="sys-uptime" class="font-mono text-xs text-gray-600">--</span></div>
+                <div class="flex justify-between items-center py-0.5"><span class="text-gray-500">Hostname:</span><span id="sys-hostname" class="font-mono text-xs text-gray-600 truncate max-w-28">—</span></div>
+                <div class="flex justify-between items-center py-0.5 border-b pb-1"><span class="text-gray-500">Devices:</span><span id="sys-device-count" class="font-bold text-indigo-600">0</span></div>
+                <div class="flex justify-between items-center py-0.5"><span class="text-gray-500">Last Update:</span><span id="last-update" class="text-xs text-gray-500">--</span></div>
+                <div class="flex justify-between items-center py-0.5"><span class="text-gray-500">Total Readings:</span><span id="total-readings-status" class="font-bold text-purple-600">0</span></div>
+            </div>
+            <div class="border-t pt-2 mt-3 mb-3 flex flex-col">
+                <div class="flex items-center justify-between mb-1"><span class="text-xs font-semibold text-gray-500 flex items-center gap-1"><i class="fas fa-terminal text-gray-400 text-xs"></i>API Response<span class="ml-1.5 text-xs bg-gray-100 px-1.5 py-0.5 rounded text-gray-500">JSON</span><span class="ml-1 text-xs text-indigo-500 truncate max-w-20" id="api-device-label"></span></span><button onclick="copyToClipboard()" class="p-1 text-gray-400 hover:text-green-500 transition" title="Copy JSON"><i class="far fa-copy text-xs"></i></button></div>
+                <pre id="raw-data" class="bg-gray-900 text-green-400 p-2 rounded-lg text-xs overflow-auto font-mono" style="min-height:80px;max-height:160px;">Waiting for data...</pre>
+            </div>
+            <div class="mt-3 space-y-1.5">
+                <button onclick="toggleAutoRefresh()" id="auto-refresh-btn" class="w-full px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition shadow-sm text-xs font-medium"><i class="fas fa-play mr-1"></i>Auto Refresh: ON</button>
+                <button onclick="clearAllConfig()" class="w-full px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition shadow-sm text-xs font-medium"><i class="fas fa-trash mr-1"></i>Clear All Config</button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Edit Device Modal -->
+<div id="edit-modal" class="hidden fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50"><div class="bg-white rounded-xl shadow-xl p-5 w-80"><h3 class="font-bold text-gray-800 mb-3 text-sm"><i class="fas fa-edit mr-1"></i>Edit Device Name</h3><input type="hidden" id="edit-device-id"><label class="block text-xs text-gray-500 mb-1">Device Name</label><input type="text" id="edit-device-name" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500" onkeydown="if(event.key==='Enter') saveDeviceEdit()"><div class="flex gap-2"><button onclick="saveDeviceEdit()" class="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition font-medium"><i class="fas fa-check mr-1"></i>Save</button><button onclick="closeEditModal()" class="px-3 py-2 bg-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-300 transition"><i class="fas fa-times mr-1"></i>Cancel</button></div></div></div>
+<script>
+function $(id){return document.getElementById(id);}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function debounce(fn,wait){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),wait);};}
+function isValidHostname(h){return h.length>0&&/^[a-zA-Z0-9._-]+$/.test(h);}
+const API='/api';
+let devices=[],latestByDevice={},activeDeviceId=null,chartDeviceFilter='all',addFormOpen=false;
+let sensorReadings=[],autoRefresh=true,refreshInterval=null;
+let mainChart,weekMiniChart,monthMiniChart,quarterMiniChart,yearMiniChart;
+var statusIndicator,statusText,rawData,lastUpdateSpan,readingCountSpan,readingsTableBody;
+
+async function api(path,opts={}){const resp=await fetch(API+path,{headers:{'Content-Type':'application/json','Accept':'application/json'},...opts});if(!resp.ok){const err=await resp.text().catch(()=>resp.statusText);throw new Error('API '+resp.status+': '+err);}if(resp.status===204)return null;return resp.json();}
+
+// ── Devices ──────────────────────────────────────────────────
+async function loadDevices(){try{devices=await api('/devices');}catch(e){console.error(e);devices=[];}$('sys-device-count').innerText=devices.length;}
+
+async function loadLatestReadings(){try{const all=await api('/readings/latest');latestByDevice={};all.forEach(r=>{latestByDevice[r.device_id]=r;});}catch(e){console.error(e);}}
+
+async function refreshAllDevices(){await loadDevices();await loadLatestReadings();renderDeviceUI();}
+
+async function addDevice(){
+    const name=$('new-device-name').value.trim(),host=$('new-device-host').value.trim();
+    if(!name){alert('Please enter a device name');return;}
+    if(!host||!isValidHostname(host)){alert('Please enter a valid hostname');return;}
+    if(devices.find(d=>d.host===host)){alert('Device with this hostname already exists');return;}
+    try{await api('/devices',{method:'POST',body:JSON.stringify({name,host})});$('new-device-name').value='';$('new-device-host').value='';toggleAddForm(true);await loadDevices();await loadLatestReadings();if(devices.length===1)selectDevice(devices[0].id);else renderDeviceUI();}catch(e){alert('Failed to add device: '+e.message);}
+}
+
+async function removeDevice(id){
+    const dev=devices.find(d=>d.id===id);
+    if(!dev||!confirm('Remove "'+dev.name+'" and all its readings?'))return;
+    try{await api('/devices/'+id,{method:'DELETE'});await loadDevices();await loadLatestReadings();
+        if(activeDeviceId===id){activeDeviceId=devices.length?devices[0].id:null;if(activeDeviceId)selectDevice(activeDeviceId);}
+        renderDeviceUI();await refreshDashboard();}catch(e){alert('Failed: '+e.message);}
+}
+
+function openEditModal(id){const dev=devices.find(d=>d.id===id);if(!dev)return;$('edit-device-id').value=id;$('edit-device-name').value=dev.name||'';$('edit-modal').classList.remove('hidden');setTimeout(()=>$('edit-device-name').focus(),50);}
+function closeEditModal(){$('edit-modal').classList.add('hidden');}
+async function saveDeviceEdit(){const id=$('edit-device-id').value,name=$('edit-device-name').value.trim();if(!name){alert('Name cannot be empty');return;}try{await api('/devices/'+id,{method:'PUT',body:JSON.stringify({name})});closeEditModal();await loadDevices();await loadLatestReadings();renderDeviceUI();if(activeDeviceId===id)selectDevice(id);}catch(e){alert('Error: '+e.message);}}
+
+function selectDevice(id){
+    activeDeviceId=id;const dev=devices.find(d=>d.id===id);if(!dev)return;
+    $('active-device-bar').classList.remove('hidden');
+    $('active-device-label').innerText=dev.name+' · '+dev.host;
+    $('api-device-label').innerText='— '+dev.name;$('sys-active-device').innerText=dev.name;
+    $('sys-hostname').innerText=dev.host;$('readings-device-label').innerText='— '+dev.name;
+    renderDeviceUI();fetchData();startPolling();
+}
+
+function renderDeviceUI(){
+    const tabsEl=$('device-tabs'),cardsEl=$('device-cards-list'),noMsg=$('no-devices-msg');
+    $('sys-device-count').innerText=devices.length;
+    if(devices.length===0){tabsEl.innerHTML='';cardsEl.innerHTML='';noMsg.classList.remove('hidden');$('active-device-bar').classList.add('hidden');return;}
+    noMsg.classList.add('hidden');
+    tabsEl.innerHTML=devices.map(d=>{const a=activeDeviceId===d.id;const r=latestByDevice[d.id];const tempStr=r?r.temperature.toFixed(1)+'°C':'--';const humStr=r?r.humidity.toFixed(1)+'%':'--';
+        return'<button data-select-id="'+d.id+'" class="dev-tab '+(a?'active-tab':'border border-gray-200 bg-gray-50 text-gray-700')+' px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 flex-shrink-0"><span class="w-2 h-2 rounded-full flex-shrink-0 '+(d.connected?'bg-green-500':'bg-red-400')+'"></span>'+esc(d.name)+' <span class="'+(a?'opacity-80':'opacity-50')+' font-mono text-xs">'+tempStr+' '+humStr+'</span></button>';}).join('');
+    cardsEl.innerHTML=devices.map(d=>{const a=activeDeviceId===d.id;const r=latestByDevice[d.id];const ls=d.last_seen?new Date((d.last_seen||'').replace(' ','T')+'Z').toLocaleTimeString():'Never';const tempStr=r?r.temperature.toFixed(1)+'°C':'--';const humStr=r?r.humidity.toFixed(1)+'%':'--';
+        return'<div class="device-card border rounded-lg p-2.5 '+(a?'active-card':'border-gray-100 bg-gray-50')+' slide-in"><div class="flex items-center justify-between gap-2"><div data-select-id="'+d.id+'" class="flex items-center gap-2 cursor-pointer flex-1 min-w-0"><div class="w-2.5 h-2.5 rounded-full flex-shrink-0 '+(d.connected?'bg-green-500 pulse-green':'bg-red-400 pulse-red')+'"></div><div class="min-w-0"><span class="font-semibold text-sm text-gray-800">'+esc(d.name)+'</span><span class="text-xs text-gray-400 ml-1 font-mono truncate">'+esc(d.host)+'</span><span class="text-xs text-gray-300 hidden md:inline flex-shrink-0"> · '+ls+'</span></div></div><div class="flex items-center gap-1 flex-shrink-0"><span class="text-xs font-mono font-semibold text-red-600 mr-1">'+tempStr+'</span><span class="text-xs font-mono font-semibold text-blue-600 mr-1">'+humStr+'</span>'+(a?'<span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium hidden sm:inline">Active</span>':'')+'<button data-edit-id="'+d.id+'" title="Edit name" class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition text-xs"><i class="fas fa-edit"></i></button><button data-remove-id="'+d.id+'" title="Remove" class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition text-xs"><i class="fas fa-trash-alt"></i></button></div></div></div>';}).join('');
+    updateChartDeviceTabs();
+}
+
+function toggleAddForm(forceClose){addFormOpen=forceClose===true?false:!addFormOpen;const form=$('add-device-form'),icon=$('add-toggle-icon'),label=$('add-toggle-label'),btn=$('add-toggle-btn');if(addFormOpen){form.classList.remove('hidden');icon.className='fas fa-times text-xs';label.innerText='Cancel';btn.className='px-3 py-1.5 bg-gray-500 text-white rounded-lg text-xs hover:bg-gray-600 transition flex items-center gap-1';setTimeout(()=>$('new-device-name').focus(),50);}else{form.classList.add('hidden');icon.className='fas fa-plus text-xs';label.innerText='Add Device';btn.className='px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700 transition flex items-center gap-1';}}
+function updateChartDeviceTabs(){const el=$('chart-device-tabs');if(!el)return;el.innerHTML='<button data-chart-id="all" class="dev-tab '+(chartDeviceFilter==='all'?'active-tab':'border border-gray-200 bg-gray-50 text-gray-700')+' px-2.5 py-1 rounded-full text-xs font-medium border flex-shrink-0">All</button>'+devices.map(d=>'<button data-chart-id="'+d.id+'" class="dev-tab '+(chartDeviceFilter===d.id?'active-tab':'border border-gray-200 bg-gray-50 text-gray-700')+' px-2.5 py-1 rounded-full text-xs font-medium border flex-shrink-0">'+esc(d.name)+'</button>').join('');}
+function setChartDevice(id){chartDeviceFilter=id;updateChartDeviceTabs();updateAllCharts();}
+function scanNetwork(){alert('The server polls all configured devices automatically. Add a new device by hostname and it starts collecting immediately.');}
+
+// ── Data loading ─────────────────────────────────────────────
+async function loadReadingsFromServer(hours){try{const params=new URLSearchParams();if(hours)params.set('hours',hours);params.set('limit','5000');const data=await api('/readings?'+params.toString());sensorReadings=data.readings.map(r=>({timestamp:new Date(r.recorded_at.replace(' ','T')+'Z'),temperature:r.temperature,humidity:r.humidity,deviceId:r.device_id,deviceName:r.device_name,uptime:r.uptime})).reverse();}catch(e){console.error(e);}}
+
+async function updateStatsFromServer(){try{const stats=await api('/readings/stats');$('total-readings-status').innerText=stats.total_readings||0;readingCountSpan.innerText=stats.total_readings||0;if(!stats.total_readings){['min-temp','max-temp','min-hum','max-hum'].forEach(id=>$(id).innerText='--');$('max-temp-time').innerText=$('max-hum-time').innerText='--';return;}$('min-temp').innerText=(stats.min_temp??'--')+' °C';$('max-temp').innerText=(stats.max_temp??'--')+' °C';$('max-temp-time').innerText=stats.last_reading?new Date((stats.last_reading||'').replace(' ','T')+'Z').toLocaleDateString():'--';$('min-hum').innerText=(stats.min_hum??'--')+' %';$('max-hum').innerText=(stats.max_hum??'--')+' %';$('max-hum-time').innerText=stats.last_reading?new Date((stats.last_reading||'').replace(' ','T')+'Z').toLocaleDateString():'--';}catch(e){console.error(e);}}
+
+function updateReadingsTable(){const filterFn=r=>chartDeviceFilter==='all'||r.deviceId===chartDeviceFilter;const recent=sensorReadings.filter(filterFn).slice(-20).reverse();if(!recent.length){readingsTableBody.innerHTML='<tr><td colspan="6" class="px-4 py-4 text-center text-gray-500">No readings yet</td></tr>';return;}readingsTableBody.innerHTML=recent.map(r=>{const st=r.temperature>30?'🔴 Hot':r.temperature<15?'🔵 Cold':'🟢 Normal';return'<tr class="hover:bg-gray-50"><td class="px-3 py-2 whitespace-nowrap">'+r.timestamp.toLocaleDateString()+'</td><td class="px-3 py-2 whitespace-nowrap">'+r.timestamp.toLocaleTimeString()+'</td><td class="px-3 py-2 whitespace-nowrap text-gray-400 text-xs">'+esc(r.deviceName||'?')+'</td><td class="px-3 py-2 whitespace-nowrap font-mono font-semibold text-red-700">'+r.temperature.toFixed(1)+'</td><td class="px-3 py-2 whitespace-nowrap font-mono font-semibold text-blue-700">'+r.humidity.toFixed(1)+'</td><td class="px-3 py-2 whitespace-nowrap">'+st+'</td></tr>';}).join('');}
+function filteredReadings(){return chartDeviceFilter==='all'?sensorReadings:sensorReadings.filter(r=>r.deviceId===chartDeviceFilter);}
+function aggregateReadings(buckets,metric,readings){const data=readings||filteredReadings();return buckets.map(({start,end})=>{const inRange=data.filter(r=>r.timestamp>=start&&r.timestamp<end);if(!inRange.length)return null;return parseFloat((inRange.reduce((s,r)=>s+r[metric],0)/inRange.length).toFixed(2));});}
+function buildBuckets(range){const now=new Date(),labels=[],buckets=[];switch(range){case'minute':for(let i=59;i>=0;i--){const s=new Date(now);s.setMinutes(now.getMinutes()-i,0,0);const e=new Date(s);e.setMinutes(s.getMinutes()+1);labels.push(s.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));buckets.push({start:s,end:e});}break;case'hourly':for(let i=23;i>=0;i--){const s=new Date(now);s.setHours(now.getHours()-i,0,0,0);const e=new Date(s);e.setHours(s.getHours()+1);labels.push(s.toLocaleTimeString([],{hour:'2-digit'}));buckets.push({start:s,end:e});}break;case'daily':for(let i=29;i>=0;i--){const s=new Date(now);s.setDate(now.getDate()-i);s.setHours(0,0,0,0);const e=new Date(s);e.setDate(s.getDate()+1);labels.push(s.toLocaleDateString([],{month:'short',day:'numeric'}));buckets.push({start:s,end:e});}break;case'weekly':for(let i=11;i>=0;i--){const s=new Date(now);s.setDate(now.getDate()-(now.getDay()+i*7));s.setHours(0,0,0,0);const e=new Date(s);e.setDate(s.getDate()+7);labels.push('W'+i);buckets.push({start:s,end:e});}break;case'monthly':for(let i=11;i>=0;i--){const s=new Date(now.getFullYear(),now.getMonth()-i,1);const e=new Date(s.getFullYear(),s.getMonth()+1,1);labels.push(s.toLocaleDateString([],{month:'short'}));buckets.push({start:s,end:e});}break;case'quarterly':for(let i=3;i>=0;i--){const s=new Date(now.getFullYear(),now.getMonth()-(i*3),1);const e=new Date(s.getFullYear(),s.getMonth()+3,1);labels.push('Q'+(Math.floor(s.getMonth()/3)+1)+' '+s.getFullYear());buckets.push({start:s,end:e});}break;case'yearly':{const years=[...new Set(sensorReadings.map(r=>r.timestamp.getFullYear()))].sort();if(!years.length)years.push(now.getFullYear());years.forEach(y=>{labels.push(String(y));buckets.push({start:new Date(y,0,1),end:new Date(y+1,0,1)});});}break;}return{labels,buckets};}
+
+// ── Charts ───────────────────────────────────────────────────
+function initCharts(){mainChart=new Chart($('mainChart').getContext('2d'),{type:'line',data:{labels:[],datasets:[{label:'Temperature (°C)',data:[],borderColor:'rgb(239,68,68)',backgroundColor:'rgba(239,68,68,0.07)',borderWidth:2.5,pointRadius:3,pointHoverRadius:6,pointBackgroundColor:'rgb(239,68,68)',pointBorderColor:'#fff',pointBorderWidth:1.5,tension:0.35,fill:true,yAxisID:'yTemp',spanGaps:true},{label:'Humidity (%)',data:[],borderColor:'rgb(59,130,246)',backgroundColor:'rgba(59,130,246,0.07)',borderWidth:2.5,pointRadius:3,pointHoverRadius:6,pointBackgroundColor:'rgb(59,130,246)',pointBorderColor:'#fff',pointBorderWidth:1.5,tension:0.35,fill:true,yAxisID:'yHum',spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(17,24,39,0.9)',titleFont:{size:11},bodyFont:{size:11},padding:10,callbacks:{label:ctx=>{if(ctx.raw===null)return null;const u=ctx.dataset.yAxisID==='yTemp'?' °C':' %';return'  '+ctx.dataset.label+': '+ctx.raw.toFixed(1)+u;}}}},scales:{x:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{size:10},maxRotation:45,maxTicksLimit:12}},yTemp:{type:'linear',position:'left',title:{display:true,text:'Temperature (°C)',color:'rgb(220,38,38)',font:{size:11,weight:'600'}},ticks:{color:'rgb(220,38,38)',font:{size:10},callback:v=>v.toFixed(1)+'°'},grid:{color:'rgba(239,68,68,0.07)'}},yHum:{type:'linear',position:'right',title:{display:true,text:'Humidity (%)',color:'rgb(37,99,235)',font:{size:11,weight:'600'}},ticks:{color:'rgb(37,99,235)',font:{size:10},callback:v=>v.toFixed(1)+'%'},grid:{display:false}}}}});const miniOpts=()=>({responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{x:{display:false},yTemp:{display:false},yHum:{display:false}},elements:{line:{tension:0.3},point:{radius:0}}});const miniDS=()=>([{data:[],borderColor:'rgb(239,68,68)',backgroundColor:'rgba(239,68,68,0.1)',borderWidth:1.5,yAxisID:'yTemp',spanGaps:true},{data:[],borderColor:'rgb(59,130,246)',backgroundColor:'rgba(59,130,246,0.1)',borderWidth:1.5,yAxisID:'yHum',spanGaps:true}]);weekMiniChart=new Chart($('weekMiniChart').getContext('2d'),{type:'line',data:{labels:[],datasets:miniDS()},options:miniOpts()});monthMiniChart=new Chart($('monthMiniChart').getContext('2d'),{type:'line',data:{labels:[],datasets:miniDS()},options:miniOpts()});quarterMiniChart=new Chart($('quarterMiniChart').getContext('2d'),{type:'line',data:{labels:[],datasets:miniDS()},options:miniOpts()});yearMiniChart=new Chart($('yearMiniChart').getContext('2d'),{type:'line',data:{labels:[],datasets:miniDS()},options:miniOpts()});updateAllCharts();}
+const updateAllCharts=debounce(function(){const range=$('time-range')?$('time-range').value:'hourly';updateMainChart(range);updateMiniCharts();updateReadingsTable();},100);
+function updateMainChart(range){if(!mainChart)return;const{labels,buckets}=buildBuckets(range);const tData=aggregateReadings(buckets,'temperature'),hData=aggregateReadings(buckets,'humidity');mainChart.data.labels=labels;mainChart.data.datasets[0].data=tData;mainChart.data.datasets[1].data=hData;mainChart.update();const setStats=(pfx,arr,unit)=>{const valid=arr.filter(v=>v!==null);if(!valid.length){$('period-avg-'+pfx).innerText=$('period-min-'+pfx).innerText=$('period-max-'+pfx).innerText='--';return;}$('period-avg-'+pfx).innerText=(valid.reduce((a,b)=>a+b,0)/valid.length).toFixed(1)+unit;$('period-min-'+pfx).innerText=Math.min(...valid).toFixed(1)+unit;$('period-max-'+pfx).innerText=Math.max(...valid).toFixed(1)+unit;};setStats('temp',tData,' °C');setStats('hum',hData,' %');}
+function fillMini(chart,readings,buckets,labels){if(!chart)return;chart.data.labels=labels;chart.data.datasets[0].data=aggregateReadings(buckets,'temperature',readings);chart.data.datasets[1].data=aggregateReadings(buckets,'humidity',readings);chart.update();}
+function updateMiniCharts(){const fr=filteredReadings(),now=new Date();const mk=(n,fn)=>{const b=[],l=[];for(let i=n-1;i>=0;i--){const{s,e,lbl}=fn(i);b.push({start:s,end:e});l.push(lbl);}return{b,l};};const w=mk(7,i=>{const s=new Date(now);s.setDate(now.getDate()-i);s.setHours(0,0,0,0);const e=new Date(s);e.setDate(s.getDate()+1);return{s,e,lbl:i};});fillMini(weekMiniChart,fr,w.b,w.l);const m=mk(4,i=>{const s=new Date(now);s.setDate(now.getDate()-(now.getDay()+i*7));s.setHours(0,0,0,0);const e=new Date(s);e.setDate(s.getDate()+7);return{s,e,lbl:i};});fillMini(monthMiniChart,fr,m.b,m.l);const q=mk(3,i=>{const s=new Date(now.getFullYear(),now.getMonth()-i,1);const e=new Date(s.getFullYear(),s.getMonth()+1,1);return{s,e,lbl:i};});fillMini(quarterMiniChart,fr,q.b,q.l);const y=mk(12,i=>{const s=new Date(now.getFullYear(),now.getMonth()-i,1);const e=new Date(s.getFullYear(),s.getMonth()+1,1);return{s,e,lbl:i};});fillMini(yearMiniChart,fr,y.b,y.l);}
+
+// ── Fetch & Polling ──────────────────────────────────────────
+async function fetchData(){
+    const dev=devices.find(d=>d.id===activeDeviceId);if(!dev){if(statusText)statusText.innerText='Add a device to get started';return;}
+    try{const latestAll=await api('/readings/latest');const latest=latestAll.find(r=>r.device_id===activeDeviceId);await loadDevices();await loadLatestReadings();const freshDev=devices.find(d=>d.id===activeDeviceId);
+        if(!latest||!freshDev?.connected){statusIndicator.className='w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0';statusText.innerText=freshDev?'Offline — '+freshDev.name:'Offline';$('sys-sensor-ok').innerText='❌ Offline';rawData.innerText=freshDev?.last_error?'// Server poll error:\n// '+freshDev.last_error:'// Waiting for first reading...';renderDeviceUI();return;}
+        const temp=latest.temperature,hum=latest.humidity;$('temperature-display').innerText=temp.toFixed(1)+' °C';$('humidity-display').innerText=hum.toFixed(1)+' %';
+        $('temp-icon').innerText=temp>30?'🔥':temp<15?'❄️':'🌡️';$('hum-icon').innerText=hum>80?'🌊':hum<30?'🏜️':'💧';
+        const tLabel=temp>35?'Very Hot':temp>28?'Hot':temp>20?'Comfortable':temp>10?'Cool':'Cold';const hLabel=hum>80?'Very Humid':hum>60?'Humid':hum>40?'Comfortable':hum>20?'Dry':'Very Dry';
+        const tColors={'Very Hot':'bg-red-200 text-red-800','Hot':'bg-orange-200 text-orange-800','Comfortable':'bg-green-200 text-green-800','Cool':'bg-blue-200 text-blue-800','Cold':'bg-indigo-200 text-indigo-800'};
+        const hColors={'Very Humid':'bg-blue-300 text-blue-900','Humid':'bg-blue-200 text-blue-800','Comfortable':'bg-green-200 text-green-800','Dry':'bg-yellow-200 text-yellow-800','Very Dry':'bg-orange-200 text-orange-800'};
+        $('temp-status').innerText=tLabel;$('temp-status').className='text-xs font-semibold px-2 py-0.5 rounded-full '+tColors[tLabel];$('hum-status').innerText=hLabel;$('hum-status').className='text-xs font-semibold px-2 py-0.5 rounded-full '+hColors[hLabel];
+        $('sys-temp').innerText=temp.toFixed(1)+' °C';$('sys-hum').innerText=hum.toFixed(1)+' %';$('sys-sensor-ok').innerText='✅ Online';
+        if(latest.uptime!=null){const s=latest.uptime,h=Math.floor(s/3600),mi=Math.floor((s%3600)/60),sec=s%60;$('sys-uptime').innerText=h+'h '+mi+'m '+sec+'s';}
+        lastUpdateSpan.innerText=new Date(latest.recorded_at.replace(' ','T')+'Z').toLocaleTimeString();
+        rawData.innerText=JSON.stringify({temperature:temp,humidity:hum,uptime:latest.uptime,recorded_at:latest.recorded_at,source:'server-db'},null,2);
+        statusIndicator.className='w-2.5 h-2.5 rounded-full bg-green-500 flex-shrink-0';statusText.innerText='Online · '+freshDev.name;renderDeviceUI();
+    }catch(error){statusIndicator.className='w-2.5 h-2.5 rounded-full bg-yellow-500 flex-shrink-0';statusText.innerText='Server error';rawData.innerText='// Error:\n// '+error.message;}
+}
+async function refreshDashboard(){await (async()=>{
+    const range=$('time-range')?$('time-range').value:'hourly';
+    const hoursMap={minute:2,hourly:48,daily:720,weekly:2160,monthly:8760,quarterly:8760,yearly:26280};
+    await loadReadingsFromServer(hoursMap[range]||72);
+})();await updateStatsFromServer();updateAllCharts();updateReadingsTable();}
+function startPolling(){if(refreshInterval)clearInterval(refreshInterval);refreshInterval=setInterval(()=>{if(autoRefresh)fetchData();},5000);}
+function stopPolling(){if(refreshInterval){clearInterval(refreshInterval);refreshInterval=null;}}
+function toggleAutoRefresh(){autoRefresh=!autoRefresh;const btn=$('auto-refresh-btn');if(autoRefresh){btn.className='w-full px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition shadow-sm text-xs font-medium';btn.innerHTML='<i class="fas fa-play mr-1"></i>Auto Refresh: ON';startPolling();}else{btn.className='w-full px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition shadow-sm text-xs font-medium';btn.innerHTML='<i class="fas fa-pause mr-1"></i>Auto Refresh: OFF';clearInterval(refreshInterval);}}
+async function testConnection(){const dev=devices.find(d=>d.id===activeDeviceId);if(!dev){alert('Select a device first');return;}await loadDevices();const freshDev=devices.find(d=>d.id===activeDeviceId);if(freshDev?.connected)alert('✅ '+freshDev.name+' ('+freshDev.host+') — Online');else alert('❌ '+(freshDev?.name||dev.name)+' — Offline\n\nLast error: '+(freshDev?.last_error||'Unknown'));}
+async function confirmResetData(){if(!confirm('Delete ALL readings? Cannot be undone.'))return;try{await api('/readings',{method:'DELETE'});sensorReadings=[];await updateStatsFromServer();updateAllCharts();updateReadingsTable();}catch(e){alert('Failed: '+e.message);}}
+async function clearAllConfig(){if(!confirm('Remove all devices and readings?'))return;stopPolling();try{for(const dev of[...devices])await api('/devices/'+dev.id,{method:'DELETE'});devices=[];activeDeviceId=null;sensorReadings=[];latestByDevice={};statusIndicator.className='w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0';statusText.innerText='No device selected';rawData.innerText='// Add a device to get started';$('temperature-display').innerText='-- °C';$('humidity-display').innerText='-- %';$('sys-temp').innerText=$('sys-hum').innerText='--';$('sys-sensor-ok').innerText='--';$('sys-uptime').innerText='--';$('sys-active-device').innerText='none';$('sys-hostname').innerText='—';$('active-device-bar').classList.add('hidden');renderDeviceUI();updateAllCharts();}catch(e){alert('Failed: '+e.message);}}
+async function refreshGraphData(){const btn=event.currentTarget||event.target;btn.innerHTML='<i class="fas fa-spinner fa-spin mr-1"></i>Refreshing...';btn.disabled=true;await refreshDashboard();setTimeout(()=>{btn.innerHTML='<i class="fas fa-chart-line mr-1"></i>Refresh';btn.disabled=false;},300);}
+function exportReadingsToCSV(){const params=new URLSearchParams();if(chartDeviceFilter!=='all')params.set('device_id',chartDeviceFilter);window.open(API+'/readings/export/csv?'+params.toString());}
+function exportGraphData(){if(!mainChart)return;const range=$('time-range').value;let csv='Interval ('+range+'),Temperature (°C),Humidity (%)\n';mainChart.data.labels.forEach((l,i)=>{const t=mainChart.data.datasets[0].data[i],h=mainChart.data.datasets[1].data[i];csv+='"'+l+'",'+(t!==null?t:'')+','+(h!==null?h:'')+'\n';});saveAs(new Blob([csv],{type:'text/csv'}),'graph_'+range+'_'+new Date().toISOString().slice(0,10)+'.csv');}
+function exportGraphAsPNG(){html2canvas($('graph-container')).then(canvas=>{const a=document.createElement('a');a.download='dht22_graph_'+new Date().toISOString().slice(0,10)+'.png';a.href=canvas.toDataURL();a.click();}).catch(e=>{console.error(e);alert('Export failed');});}
+function copyToClipboard(){navigator.clipboard?.writeText(rawData.innerText).catch(()=>{});}
+
+// ── Events ───────────────────────────────────────────────────
+document.addEventListener('click',function(e){const sel=e.target.closest('[data-select-id]');const edit=e.target.closest('[data-edit-id]');const remove=e.target.closest('[data-remove-id]');const chart=e.target.closest('[data-chart-id]');if(sel)selectDevice(sel.dataset.selectId);if(edit){e.stopPropagation();openEditModal(edit.dataset.editId);}if(remove){e.stopPropagation();removeDevice(remove.dataset.removeId);}if(chart)setChartDevice(chart.dataset.chartId);});
+
+// ── Init ─────────────────────────────────────────────────────
+window.onload=async()=>{statusIndicator=$('status-indicator');statusText=$('status-text');rawData=$('raw-data');lastUpdateSpan=$('last-update');readingCountSpan=$('reading-count');readingsTableBody=$('readings-table-body');await loadDevices();await loadLatestReadings();renderDeviceUI();if($('mainChart'))initCharts();await refreshDashboard();if(devices.length>0){activeDeviceId=devices[0].id;selectDevice(activeDeviceId);}else{rawData.innerText='// Add a device above to get started.';}setInterval(async()=>{if(autoRefresh)await refreshDashboard();},5000);window.addEventListener('beforeunload',stopPolling);};
+Object.assign(window,{openEditModal,closeEditModal,saveDeviceEdit,fetchData,testConnection,toggleAutoRefresh,confirmResetData,clearAllConfig,exportReadingsToCSV,exportGraphData,exportGraphAsPNG,refreshGraphData,updateAllCharts,copyToClipboard,addDevice,toggleAddForm,scanNetwork,refreshAllDevices});
+</script>
+</body>
+</html>

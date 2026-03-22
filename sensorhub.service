@@ -1,0 +1,19 @@
+[Unit]
+Description=SensorHub — DHT22 Data Collector & API
+After=network-online.target avahi-daemon.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/sensorhub
+ExecStart=/opt/sensorhub/venv/bin/uvicorn server:app --host 127.0.0.1 --port 8000 --workers 1
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=sensorhub
+
+[Install]
+WantedBy=multi-user.target
