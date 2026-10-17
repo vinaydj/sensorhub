@@ -1,0 +1,6 @@
+/* SensorHub - precompiled Tailwind CSS (replaces cdn.tailwindcss.com runtime).
+   Rebuild after adding new Tailwind classes:
+   npx tailwindcss@3 -i tailwind.in.css -o assets/sensorhub.css --minify --content "./*.html" */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

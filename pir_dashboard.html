@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PIR Occupancy – SensorHub</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/assets/sensorhub.css?v=1">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
@@ -20,6 +20,96 @@
         .device-card{transition:all .2s ease}.device-card.active-card{border-color:#6366f1!important;background:#eef2ff!important}
         .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
     </style>
+    <style id="dm-style">
+    /* ── Shared Device Manager (same on all SensorHub pages) ── */
+    .dm{--dm-accent:#4f46e5;--dm-accent-soft:#eef2ff;--dm-on:#16a34a;--dm-on-soft:#dcfce7;--dm-off:#dc2626;--dm-off-soft:#fee2e2;--dm-line:#e5e7eb;--dm-muted:#6b7280}
+    .dm-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem;padding:.875rem 1rem;border-bottom:1px solid var(--dm-line)}
+    .dm-icon{width:2.25rem;height:2.25rem;border-radius:.6rem;background:var(--dm-accent-soft);color:var(--dm-accent);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .dm-title{font-weight:600;font-size:.95rem;color:#111827;line-height:1.2}
+    .dm-sub{font-size:.75rem;color:var(--dm-muted);margin-top:.1rem}
+    .dm-sub b{font-weight:600}
+    .dm-sub .on{color:var(--dm-on)} .dm-sub .off{color:var(--dm-off)}
+    .dm-tools{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+    .dm-chip{display:inline-flex;align-items:center;gap:.35rem;font-size:.75rem;font-weight:500;color:#374151;background:#f3f4f6;border-radius:999px;padding:.35rem .7rem;white-space:nowrap}
+    .dm-chip i{color:var(--dm-muted);font-size:.7rem}
+    .dm-btn{display:inline-flex;align-items:center;gap:.4rem;font-size:.8rem;font-weight:500;border-radius:.55rem;padding:.45rem .8rem;transition:background .15s,color .15s,border-color .15s;white-space:nowrap}
+    .dm-btn:focus-visible,.dm-card:focus-visible{outline:2px solid var(--dm-accent);outline-offset:2px}
+    .dm-btn-ghost{background:#fff;border:1px solid var(--dm-line);color:#374151}
+    .dm-btn-ghost:hover{background:#f9fafb;border-color:#d1d5db}
+    .dm-btn-primary{background:var(--dm-accent);color:#fff;border:1px solid var(--dm-accent)}
+    .dm-btn-primary:hover{background:#4338ca}
+    .dm-btn-primary.is-open{background:#fff;color:#374151;border-color:var(--dm-line)}
+    .dm-form{padding:.875rem 1rem;background:#f9fafb;border-bottom:1px solid var(--dm-line)}
+    .dm-form label{display:block;font-size:.72rem;font-weight:500;color:#4b5563;margin-bottom:.25rem}
+    .dm-form input{width:100%;border:1px solid #d1d5db;border-radius:.5rem;padding:.5rem .7rem;font-size:.85rem;background:#fff}
+    .dm-form input:focus{outline:none;border-color:var(--dm-accent);box-shadow:0 0 0 3px rgba(79,70,229,.15)}
+    .dm-form .dm-hint{font-size:.72rem;color:var(--dm-muted);margin-top:.5rem}
+    .dm-body{padding:1rem}
+    .dm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:.75rem}
+    .dm-empty{text-align:center;padding:1.75rem 1rem;border:1.5px dashed var(--dm-line);border-radius:.75rem;color:var(--dm-muted);font-size:.85rem}
+    .dm-empty i{font-size:1.5rem;color:#c7d2fe;display:block;margin-bottom:.5rem}
+    .dm-empty code{font-size:.75rem;background:#f3f4f6;padding:.1rem .35rem;border-radius:.3rem}
+    .dm-card{position:relative;border:1px solid var(--dm-line);border-radius:.75rem;background:#fff;transition:border-color .15s,box-shadow .15s}
+    .dm-card:hover{border-color:#c7d2fe;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+    .dm-card.is-sel{border-color:var(--dm-accent);box-shadow:0 0 0 3px rgba(79,70,229,.12)}
+    .dm-main{display:block;width:100%;text-align:left;padding:.75rem .85rem;cursor:pointer;border-radius:.75rem}
+    .dm-row{display:flex;align-items:center;gap:.6rem;min-width:0;padding-right:3.75rem}
+    .dm-dot{width:.6rem;height:.6rem;border-radius:999px;flex-shrink:0;background:var(--dm-off)}
+    .is-on .dm-dot{background:var(--dm-on);box-shadow:0 0 0 0 rgba(22,163,74,.5);animation:dm-pulse 2s infinite}
+    @keyframes dm-pulse{0%{box-shadow:0 0 0 0 rgba(22,163,74,.45)}70%{box-shadow:0 0 0 6px rgba(22,163,74,0)}100%{box-shadow:0 0 0 0 rgba(22,163,74,0)}}
+    @media (prefers-reduced-motion:reduce){.is-on .dm-dot{animation:none}}
+    .dm-name{font-weight:600;font-size:.88rem;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .dm-id{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.72rem;color:var(--dm-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .dm-foot{display:flex;align-items:center;flex-wrap:wrap;gap:.4rem;margin-top:.6rem;font-size:.72rem;color:var(--dm-muted)}
+    .dm-pill{font-weight:600;border-radius:999px;padding:.12rem .5rem;font-size:.7rem}
+    .is-on .dm-pill{background:var(--dm-on-soft);color:#15803d}
+    .is-off .dm-pill{background:var(--dm-off-soft);color:#b91c1c}
+    .dm-sel{margin-left:auto;font-weight:600;color:var(--dm-accent);font-size:.7rem}
+    .dm-metrics{display:flex;gap:.75rem;margin-top:.55rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.82rem;font-weight:600}
+    .dm-metrics .t{color:#dc2626} .dm-metrics .h{color:#2563eb}
+    .dm-actions{position:absolute;top:.5rem;right:.5rem;display:flex;gap:.15rem}
+    .dm-act{width:1.75rem;height:1.75rem;border-radius:.45rem;display:flex;align-items:center;justify-content:center;color:#9ca3af;font-size:.75rem;transition:background .15s,color .15s}
+    .dm-act:hover{background:#eef2ff;color:var(--dm-accent)}
+    .dm-act.del:hover{background:#fee2e2;color:#dc2626}
+    </style>
+    <script id="dm-script">
+    /* Shared Device Manager renderer. Each page maps its own device shape to:
+       {id, name, sub, connected, lastSeen, selected, metrics:[{cls,text}]} */
+    const DM = {
+      esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');},
+      parseTs(ts){if(!ts)return null;const d=new Date(String(ts).replace(' ','T')+(/[zZ]|[+-]\d\d:?\d\d$/.test(ts)?'':'Z'));return isNaN(d)?null:d;},
+      ago(ts){const d=DM.parseTs(ts);if(!d)return 'never seen';const s=Math.max(0,Math.round((Date.now()-d)/1000));
+        if(s<10)return 'just now';if(s<60)return s+'s ago';const m=Math.round(s/60);if(m<60)return m+' min ago';
+        const h=Math.round(m/60);if(h<48)return h+' h ago';return Math.round(h/24)+' days ago';},
+      card(d){const e=DM.esc,id=e(d.id),cls=(d.connected?'is-on':'is-off')+(d.selected?' is-sel':'');
+        const seen=DM.parseTs(d.lastSeen);const title=seen?'Last seen '+seen.toLocaleString():'No data received yet';
+        const metrics=(d.metrics&&d.metrics.length)?'<div class="dm-metrics">'+d.metrics.map(m=>'<span class="'+m.cls+'">'+e(m.text)+'</span>').join('')+'</div>':'';
+        return '<div class="dm-card '+cls+'">'+
+          '<div class="dm-main" data-select-id="'+id+'" role="button" tabindex="0" aria-pressed="'+(d.selected?'true':'false')+'" title="Select '+e(d.name)+'">'+
+            '<div class="dm-row"><span class="dm-dot" aria-hidden="true"></span><div class="min-w-0"><div class="dm-name">'+e(d.name)+'</div><div class="dm-id">'+e(d.sub)+'</div></div></div>'+
+            metrics+
+            '<div class="dm-foot"><span class="dm-pill">'+(d.connected?'Online':'Offline')+'</span><span title="'+e(title)+'">'+DM.ago(d.lastSeen)+'</span>'+(d.selected?'<span class="dm-sel"><i class="fas fa-check mr-1"></i>Selected</span>':'')+'</div>'+
+          '</div>'+
+          '<div class="dm-actions"><button type="button" class="dm-act" data-edit-id="'+id+'" title="Rename" aria-label="Rename '+e(d.name)+'"><i class="fas fa-pen"></i></button>'+
+          '<button type="button" class="dm-act del" data-remove-id="'+id+'" title="Remove" aria-label="Remove '+e(d.name)+'"><i class="fas fa-trash-alt"></i></button></div>'+
+        '</div>';},
+      render(items){const list=document.getElementById('device-cards-list'),empty=document.getElementById('no-devices-msg'),sum=document.getElementById('dm-summary'),sys=document.getElementById('sys-device-count');
+        if(sys)sys.innerText=items.length;
+        if(!items.length){list.innerHTML='';empty.classList.remove('hidden');if(sum)sum.innerHTML='No devices yet';return false;}
+        empty.classList.add('hidden');
+        const on=items.filter(d=>d.connected).length;
+        if(sum)sum.innerHTML='<b class="'+(on?'on':'')+'">'+on+' online</b> · <b class="'+(items.length-on?'off':'')+'">'+(items.length-on)+' offline</b> · '+items.length+' total';
+        list.innerHTML=items.map(DM.card).join('');return true;},
+      toggleForm(open,focusId){const form=document.getElementById('add-device-form'),btn=document.getElementById('add-toggle-btn'),icon=document.getElementById('add-toggle-icon'),label=document.getElementById('add-toggle-label');
+        form.classList.toggle('hidden',!open);btn.classList.toggle('is-open',open);btn.setAttribute('aria-expanded',open?'true':'false');
+        icon.className='fas '+(open?'fa-times':'fa-plus');label.innerText=open?'Cancel':'Add device';
+        if(open&&focusId)setTimeout(()=>{const el=document.getElementById(focusId);if(el)el.focus();},50);}
+    };
+    // Keyboard: Enter/Space on a focused card selects it (clicks are handled by each page).
+    document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.classList&&e.target.classList.contains('dm-main')){e.preventDefault();e.target.click();}});
+    // Refresh "x min ago" labels every 30 s without refetching.
+    setInterval(()=>{if(typeof renderDeviceUI==='function'&&document.getElementById('device-cards-list')?.children.length)renderDeviceUI();},30000);
+    </script>
 </head>
 <body class="bg-gray-50 min-h-screen p-3 md:p-6">
 <div class="max-w-7xl mx-auto">
@@ -32,35 +122,36 @@
         <h1 class="text-xl md:text-3xl font-bold text-gray-800 mb-1"><i class="fas fa-chart-pie text-indigo-500 mr-2"></i>Room Occupancy Analytics</h1>
         <p class="text-xs md:text-sm text-gray-500">Server-backed PIR motion tracking with session analytics</p>
     </div>
-    <!-- Multi-Device Manager -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-3 md:p-4 mb-4">
-        <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
-            <h3 class="font-semibold text-gray-800 flex items-center text-sm"><i class="fas fa-network-wired text-indigo-500 mr-2"></i>Multi-Device Manager</h3>
-            <div class="flex flex-wrap items-center gap-1.5">
-                <button onclick="loadDevices()" class="px-2.5 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-xs hover:bg-indigo-100 transition flex items-center gap-1"><i class="fas fa-sync-alt text-xs"></i> Refresh All</button>
-                <span class="text-xs bg-blue-50 text-blue-700 px-2.5 py-1.5 rounded-full font-medium flex items-center gap-1"><i class="far fa-clock"></i><span id="session-count">0</span> sessions</span>
-            </div>
-        </div>
-        <div class="flex flex-nowrap gap-1.5 mb-2 min-h-7 overflow-x-auto pb-1" id="device-tabs"></div>
-        <div id="no-devices-msg" class="text-center text-gray-400 text-sm py-5 border border-dashed border-gray-200 rounded-lg">No devices registered yet. ESP32 boards will appear once they POST to <code>/api/pir/ingest</code>, or add one manually below.</div>
-        <div id="device-cards-list" class="space-y-2"></div>
-        <div class="border-t pt-3 mt-3">
-            <div class="flex items-center justify-between mb-2">
-                <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Add New Device</span>
-                <button onclick="toggleAddForm()" id="add-toggle-btn" class="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700 transition flex items-center gap-1"><i class="fas fa-plus text-xs" id="add-toggle-icon"></i><span id="add-toggle-label">Add Device</span></button>
-            </div>
-            <div id="add-device-form" class="hidden">
-                <div class="bg-gray-50 rounded-lg p-3 border border-gray-200 slide-in">
-                    <div class="grid grid-cols-1 sm:grid-cols-5 gap-2">
-                        <div class="sm:col-span-2"><label class="block text-xs text-gray-500 mb-1">Device ID</label><input type="text" id="new-device-id" placeholder="e.g., esp32_pir_01" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"></div>
-                        <div class="sm:col-span-2"><label class="block text-xs text-gray-500 mb-1">Device Name</label><input type="text" id="new-device-name" placeholder="e.g., Office" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" onkeydown="if(event.key==='Enter') addDevice()"></div>
-                        <div class="sm:col-span-1 flex items-end gap-1"><button onclick="addDevice()" class="flex-1 px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 transition shadow-sm font-medium"><i class="fas fa-plus mr-1"></i>Add</button><button onclick="toggleAddForm(true)" class="px-3 py-2 bg-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-300 transition"><i class="fas fa-times"></i></button></div>
-                    </div>
-                    <p class="text-xs text-gray-400 mt-1.5">The Device ID must match what the ESP32 sends. Name is a friendly label.</p>
+    <!-- Multi-Device Manager (shared design) -->
+    <section id="device-manager" class="dm bg-white rounded-2xl shadow-sm border border-gray-200 mb-4 overflow-hidden" aria-label="Device manager">
+        <div class="dm-head">
+            <div class="flex items-center gap-3 min-w-0">
+                <div class="dm-icon"><i class="fas fa-network-wired"></i></div>
+                <div class="min-w-0">
+                    <h3 class="dm-title">Device Manager</h3>
+                    <p class="dm-sub" id="dm-summary">No devices yet</p>
                 </div>
             </div>
+            <div class="dm-tools">
+                <span class="dm-chip" title="Occupancy sessions"><i class="fas fa-clock"></i><span id="session-count">0</span> sessions</span>
+                <button type="button" onclick="loadDevices()" class="dm-btn dm-btn-ghost" title="Refresh devices"><i class="fas fa-sync-alt"></i><span class="hidden sm:inline">Refresh</span></button>
+                <button type="button" onclick="toggleAddForm()" id="add-toggle-btn" class="dm-btn dm-btn-primary" aria-expanded="false" aria-controls="add-device-form"><i class="fas fa-plus" id="add-toggle-icon"></i><span id="add-toggle-label">Add device</span></button>
+            </div>
         </div>
-    </div>
+        <div id="add-device-form" class="hidden dm-form">
+            <div class="grid grid-cols-1 sm:grid-cols-5 gap-3 items-end">
+                <div class="sm:col-span-2"><label for="new-device-id">Device ID</label><input type="text" id="new-device-id" placeholder="e.g. esp32_pir_01" class="font-mono"></div>
+                <div class="sm:col-span-2"><label for="new-device-name">Device name</label><input type="text" id="new-device-name" placeholder="e.g. Office" onkeydown="if(event.key==='Enter') addDevice()"></div>
+                <div class="sm:col-span-1"><button type="button" onclick="addDevice()" class="dm-btn dm-btn-primary w-full justify-center" style="padding:.55rem .8rem"><i class="fas fa-plug"></i>Add</button></div>
+            </div>
+            <p class="dm-hint"><i class="fas fa-info-circle mr-1"></i>Device ID must match what the ESP32 sends to /api/pir/ingest. Name is a friendly label.</p>
+        </div>
+        <div class="dm-body">
+            <div id="device-tabs" class="hidden" aria-hidden="true"></div>
+            <div id="no-devices-msg" class="dm-empty"><i class="fas fa-satellite-dish"></i>No motion sensors yet. Boards appear here once they POST to <code>/api/pir/ingest</code>, or add one manually.</div>
+            <div id="device-cards-list" class="dm-grid"></div>
+        </div>
+    </section>
     <!-- Active Device Status Bar -->
     <div id="active-device-bar" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 p-3 mb-4">
         <div class="flex flex-wrap items-center justify-between gap-2">
@@ -161,14 +252,14 @@ let devices=[],activeDeviceId=null,chartDeviceFilter='all',sessions=[],activeSes
 let mainChart=null,weekMiniChart=null,monthMiniChart=null,quarterMiniChart=null,yearMiniChart=null;
 async function api(path,opts){const r=await fetch(API+path,opts);if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}
 async function loadDevices(){try{devices=await api('/devices');$('sys-device-count').innerText=devices.length;renderDeviceUI();}catch(e){console.error('loadDevices:',e);}}
-function renderDeviceUI(){const tabsEl=$('device-tabs'),cardsEl=$('device-cards-list'),noMsg=$('no-devices-msg');if(!devices.length){tabsEl.innerHTML='';cardsEl.innerHTML='';noMsg.classList.remove('hidden');$('active-device-bar').classList.add('hidden');return;}noMsg.classList.add('hidden');
-tabsEl.innerHTML=devices.map(d=>{const a=activeDeviceId===d.device_id;return`<button data-select-id="${d.device_id}" class="dev-tab ${a?'active-tab':'border border-gray-200 bg-gray-50 text-gray-700'} px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 flex-shrink-0"><span class="w-2 h-2 rounded-full flex-shrink-0 ${d.connected?'bg-green-500':'bg-red-400'}"></span>${esc(d.device_name||d.device_id)}<span class="${a?'opacity-70':'opacity-50'} text-xs hidden sm:inline">${esc(d.device_id)}</span></button>`;}).join('');
-cardsEl.innerHTML=devices.map(d=>{const a=activeDeviceId===d.device_id;const ls=d.last_seen?`<span class="text-xs text-gray-300 ml-1 hidden md:inline">· ${new Date(d.last_seen+'Z').toLocaleTimeString()}</span>`:'';return`<div class="device-card border rounded-lg p-2.5 ${a?'active-card border-indigo-200':'border-gray-100 bg-gray-50'} slide-in"><div class="flex items-center justify-between gap-2"><div data-select-id="${d.device_id}" class="flex items-center gap-2 cursor-pointer flex-1 min-w-0"><div class="w-2.5 h-2.5 rounded-full flex-shrink-0 '+(d.connected?'bg-green-500 pulse-green':'bg-red-400 pulse-red')+'"></div><div class="min-w-0"><span class="font-semibold text-sm text-gray-800">${esc(d.device_name||d.device_id)}</span><span class="text-xs text-gray-400 ml-1 md:ml-2 font-mono">${esc(d.device_id)}</span>${ls}</div></div><div class="flex items-center gap-1 flex-shrink-0">${(d.connected?'<span class="text-xs px-2 py-0.5 rounded-full font-medium mr-1 bg-green-100 text-green-700">Online</span>':'<span class="text-xs px-2 py-0.5 rounded-full font-medium mr-1 bg-red-100 text-red-700">Offline</span>')}${a?'<span class="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-medium hidden sm:inline">Selected</span>':''}<button data-edit-id="${d.device_id}" title="Edit" class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition text-xs"><i class="fas fa-edit"></i></button><button data-remove-id="${d.device_id}" title="Remove" class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition text-xs"><i class="fas fa-trash-alt"></i></button></div></div></div>`;}).join('');
+function renderDeviceUI(){
+const items=devices.map(d=>({id:d.device_id,name:d.device_name||d.device_id,sub:d.device_id,connected:!!d.connected,lastSeen:d.last_seen,selected:activeDeviceId===d.device_id,metrics:[]}));
+if(!DM.render(items)){$('active-device-bar').classList.add('hidden');return;}
 updateChartDeviceTabs();}
 function updateChartDeviceTabs(){$('chart-device-tabs').innerHTML=`<button data-chart-id="all" class="dev-tab ${chartDeviceFilter==='all'?'active-tab':'border border-gray-200 bg-gray-50 text-gray-700'} px-2 py-0.5 rounded-full text-xs font-medium border flex-shrink-0">All</button>`+devices.map(d=>`<button data-chart-id="${d.device_id}" class="dev-tab ${chartDeviceFilter===d.device_id?'active-tab':'border border-gray-200 bg-gray-50 text-gray-700'} px-2 py-0.5 rounded-full text-xs font-medium border flex-shrink-0">${esc(d.device_name||d.device_id)}</button>`).join('');}
 function selectDevice(id){activeDeviceId=id;const dev=devices.find(d=>d.device_id===id);if(!dev)return;$('active-device-bar').classList.remove('hidden');$('active-device-label').innerText=(dev.device_name||dev.device_id)+' · '+dev.device_id;$('api-device-label').innerText='— '+(dev.device_name||dev.device_id);$('sys-active-device').innerText=dev.device_name||dev.device_id;$('sessions-device-label').innerText='— '+(dev.device_name||dev.device_id);renderDeviceUI();refreshAll();}
 function setChartDevice(id){chartDeviceFilter=id;updateChartDeviceTabs();updateAllCharts();}
-function toggleAddForm(fc){addFormOpen=fc===true?false:!addFormOpen;const form=$('add-device-form'),icon=$('add-toggle-icon'),label=$('add-toggle-label'),btn=$('add-toggle-btn');if(addFormOpen){form.classList.remove('hidden');icon.className='fas fa-times text-xs';label.innerText='Cancel';btn.className='px-3 py-1.5 bg-gray-500 text-white rounded-lg text-xs hover:bg-gray-600 transition flex items-center gap-1';setTimeout(()=>$('new-device-id').focus(),50);}else{form.classList.add('hidden');icon.className='fas fa-plus text-xs';label.innerText='Add Device';btn.className='px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs hover:bg-green-700 transition flex items-center gap-1';}}
+function toggleAddForm(fc){addFormOpen=fc===true?false:!addFormOpen;DM.toggleForm(addFormOpen,'new-device-id');}
 async function addDevice(){const id=$('new-device-id').value.trim(),name=$('new-device-name').value.trim();if(!id){alert('Please enter a Device ID');return;}if(devices.find(d=>d.device_id===id)){alert('Device already exists');return;}try{await fetch(API+'/ingest',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({device_id:id,device_name:name||id,motion_detected:false})});$('new-device-id').value='';$('new-device-name').value='';toggleAddForm(true);await loadDevices();if(devices.length===1)selectDevice(id);}catch(e){alert('Failed: '+e.message);}}
 async function removeDevice(id){const dev=devices.find(d=>d.device_id===id);if(!dev||!confirm(`Remove "${dev.device_name||id}" and all its sessions?`))return;try{await api('/devices/'+encodeURIComponent(id),{method:'DELETE'});await loadDevices();if(activeDeviceId===id){activeDeviceId=devices.length?devices[0].device_id:null;if(activeDeviceId)selectDevice(activeDeviceId);else{$('active-device-bar').classList.add('hidden');renderDeviceUI();}}}catch(e){alert('Error: '+e.message);}}
 function openEditModal(id){const dev=devices.find(d=>d.device_id===id);if(!dev)return;$('edit-device-id').value=id;$('edit-device-name').value=dev.device_name||'';$('edit-modal').classList.remove('hidden');setTimeout(()=>$('edit-device-name').focus(),50);}
