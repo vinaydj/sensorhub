@@ -30,7 +30,7 @@ log = logging.getLogger("sensorhub")
 # ══════════════════════════════════════════════════════════════════════════════
 def get_db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = sqlite3.connect(str(DB_PATH), isolation_level=None, timeout=10)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
@@ -221,6 +221,74 @@ async def poll_one_device(device_id, name, host):
         conn.close()
         log.warning(f"[{name}] Poll failed: {e}")
 
+# ── AIR POLLING (v4): boards that serve GET /api/sensors/all ─────────────
+AIR_POLL_INTERVAL = 5
+AIR_POLL_TIMEOUT = 3
+_AIR_LAST_PUSH = {}
+
+def _air_host(device_id):
+    """Device ID -> address: an IP or dotted name is used as-is, else '<id>.local'."""
+    d = device_id.strip()
+    return d if '.' in d or ':' in d else d.lower() + '.local'
+
+def _num(v):
+    try:
+        f = float(v)
+        return None if f != f else f
+    except (TypeError, ValueError):
+        return None
+
+def _parse_air(data):
+    """Accept nested {aht21:{..}, ens160:{..}} or flat {temperature, humidity, eco2, tvoc}."""
+    aht = data.get('aht21') or data.get('aht') or {}
+    ens = data.get('ens160') or data.get('ens') or {}
+    temp = _num(aht.get('temperature', data.get('temperature')))
+    hum = _num(aht.get('humidity', data.get('humidity')))
+    eco2 = _num(ens.get('eco2', data.get('eco2')))
+    tvoc = _num(ens.get('tvoc', data.get('tvoc')))
+    if aht.get('working') is False:
+        temp = hum = None
+    if ens.get('working') is False:
+        eco2 = tvoc = None
+    warm = str(data.get('warmup_status') or ens.get('warmup_status') or 'unknown')
+    return temp, hum, (int(eco2) if eco2 is not None else None), (int(tvoc) if tvoc is not None else None), warm
+
+async def poll_air_devices():
+    log.info(f"Air polling started (every {AIR_POLL_INTERVAL}s)")
+    while True:
+        try:
+            conn = get_db()
+            ids = [r['device_id'] for r in conn.execute('SELECT device_id FROM air_devices').fetchall()]
+            conn.close()
+            now = time.time()
+            ids = [i for i in ids if now - _AIR_LAST_PUSH.get(i, 0) > 3 * AIR_POLL_INTERVAL]
+            if ids:
+                await asyncio.gather(*(poll_one_air(i) for i in ids), return_exceptions=True)
+        except Exception as e:
+            log.warning(f"[air] poll loop error: {e}")
+        await asyncio.sleep(AIR_POLL_INTERVAL)
+
+async def poll_one_air(device_id):
+    url = f"http://{_air_host(device_id)}/api/sensors/all"
+    try:
+        async with httpx.AsyncClient(timeout=AIR_POLL_TIMEOUT) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            data = resp.json()
+    except Exception as e:
+        log.debug(f"[air:{device_id}] poll failed ({url}): {e}")
+        return
+    temp, hum, eco2, tvoc, warm = _parse_air(data)
+    if temp is None and hum is None and eco2 is None and tvoc is None:
+        log.warning(f"[air:{device_id}] no usable values in {url}")
+        return
+    conn = get_db()
+    conn.execute("UPDATE air_devices SET last_seen=datetime('now') WHERE device_id=?", (device_id,))
+    conn.execute(
+        'INSERT INTO air_readings (device_id, temperature, humidity, eco2, tvoc, warmup_status) VALUES (?,?,?,?,?,?)',
+        (device_id, temp, hum, eco2, tvoc, warm))
+    conn.close()
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  APP LIFESPAN
 # ══════════════════════════════════════════════════════════════════════════════
@@ -230,9 +298,11 @@ async def lifespan(app):
     load_devices_from_file()
     task = asyncio.create_task(poll_sensors())
     weather_task = asyncio.create_task(poll_weather())
+    air_task = asyncio.create_task(poll_air_devices())
     yield
     task.cancel()
     weather_task.cancel()
+    air_task.cancel()
     try:
         await task
     except asyncio.CancelledError:
@@ -445,11 +515,12 @@ class AirReading(BaseModel):
 
 @app.post("/api/air/ingest")
 def ingest_air(r: AirReading):
+    _AIR_LAST_PUSH[r.device_id] = time.time()
     conn = get_db()
     conn.execute(
         """INSERT INTO air_devices (device_id, device_name, last_seen)
            VALUES (?,?,datetime('now'))
-           ON CONFLICT(device_id) DO UPDATE SET device_name=excluded.device_name, last_seen=datetime('now')""",
+           ON CONFLICT(device_id) DO UPDATE SET device_name=CASE WHEN COALESCE(air_devices.device_name,'')='' THEN excluded.device_name ELSE air_devices.device_name END, last_seen=datetime('now')""",
         (r.device_id, r.device_name)
     )
     conn.execute(
@@ -509,6 +580,52 @@ def get_air_devices():
     conn.close()
     return [dict(r) for r in rows]
 
+class DeviceName(BaseModel):
+    device_id: Optional[str] = None
+    device_name: str = ""
+
+def _register_device(table, device_id, device_name):
+    if not device_id or not device_id.strip():
+        raise HTTPException(400, "device_id required")
+    conn = get_db()
+    exists = conn.execute(f"SELECT 1 FROM {table} WHERE device_id=?", (device_id,)).fetchone()
+    if exists:
+        conn.close()
+        raise HTTPException(409, "Device already exists")
+    # last_seen is NOT NULL in the schema; 1970 marks "registered, never heard from"
+    conn.execute(f"INSERT INTO {table} (device_id, device_name, last_seen) VALUES (?,?,'1970-01-01 00:00:00')",
+                 (device_id, device_name or device_id))
+    conn.commit()
+    conn.close()
+    return {"status": "created"}
+
+def _rename_device(table, device_id, device_name):
+    if not device_name.strip():
+        raise HTTPException(400, "device_name required")
+    conn = get_db()
+    cur = conn.execute(f"UPDATE {table} SET device_name=? WHERE device_id=?", (device_name.strip(), device_id))
+    conn.commit()
+    conn.close()
+    if cur.rowcount == 0:
+        raise HTTPException(404, "Device not found")
+    return {"status": "renamed"}
+
+@app.post("/api/air/devices")
+def add_air_device(d: DeviceName):
+    return _register_device("air_devices", d.device_id, d.device_name)
+
+@app.put("/api/air/devices/{device_id}")
+def rename_air_device(device_id: str, d: DeviceName):
+    return _rename_device("air_devices", device_id, d.device_name)
+
+@app.post("/api/pir/devices")
+def add_pir_device(d: DeviceName):
+    return _register_device("pir_devices", d.device_id, d.device_name)
+
+@app.put("/api/pir/devices/{device_id}")
+def rename_pir_device(device_id: str, d: DeviceName):
+    return _rename_device("pir_devices", device_id, d.device_name)
+
 @app.delete("/api/air/devices/{device_id}")
 def delete_air_device(device_id: str):
     """Remove an air device and all its readings."""
@@ -546,7 +663,7 @@ def ingest_pir(r: PIREvent):
     conn.execute(
         """INSERT INTO pir_devices (device_id, device_name, last_seen)
            VALUES (?,?,datetime('now'))
-           ON CONFLICT(device_id) DO UPDATE SET device_name=excluded.device_name, last_seen=datetime('now')""",
+           ON CONFLICT(device_id) DO UPDATE SET device_name=CASE WHEN COALESCE(pir_devices.device_name,'')='' THEN excluded.device_name ELSE pir_devices.device_name END, last_seen=datetime('now')""",
         (r.device_id, r.device_name)
     )
     conn.execute("INSERT INTO pir_events (device_id, motion_detected) VALUES (?,?)",
