@@ -120,6 +120,25 @@ def init_db():
             recorded_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
         CREATE INDEX IF NOT EXISTS idx_weather_ts ON weather_readings(recorded_at);
+
+        -- ── Weather Forecast (from OpenWeatherMap 5-day/3-hour) ──────────────
+        CREATE TABLE IF NOT EXISTS weather_forecast (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            forecast_time TEXT NOT NULL,
+            temperature REAL,
+            humidity REAL,
+            feels_like REAL,
+            pressure REAL,
+            wind_speed REAL,
+            wind_deg REAL,
+            rain_3h REAL DEFAULT 0,
+            clouds INTEGER DEFAULT 0,
+            description TEXT,
+            icon TEXT,
+            city TEXT,
+            fetched_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_forecast_time ON weather_forecast(forecast_time);
     """)
     conn.commit()
     conn.close()
@@ -309,7 +328,7 @@ def latest_readings():
 
 @app.get("/api/readings")
 def get_readings(device_id: Optional[str] = None, hours: Optional[int] = Query(None),
-                 days: Optional[int] = Query(None), limit: int = Query(500, le=10000), offset: int = 0):
+                 days: Optional[int] = Query(None), limit: int = Query(500), offset: int = 0):
     conn = get_db()
     conditions = []
     params = []
@@ -723,13 +742,20 @@ async def fetch_and_store_weather():
         return None
 
 async def poll_weather():
-    """Background task: fetch weather at configured interval."""
+    """Background task: fetch weather + forecast at configured interval."""
     log.info("Weather polling started")
     await asyncio.sleep(5)  # Wait for startup
+    forecast_counter = 0
     while True:
         cfg = load_weather_config()
         interval = max(cfg.get("interval_minutes", 15), 1) * 60
         await fetch_and_store_weather()
+        forecast_counter += 1
+        # Fetch forecast every ~1 hour (or every N weather fetches)
+        fetches_per_hour = max(1, 60 // max(cfg.get("interval_minutes", 15), 1))
+        if forecast_counter >= fetches_per_hour:
+            await fetch_and_store_forecast()
+            forecast_counter = 0
         await asyncio.sleep(interval)
 
 @app.get("/api/weather/config")
@@ -837,6 +863,92 @@ def delete_weather_readings():
 # ══════════════════════════════════════════════════════════════════════════════
 #  HEALTH
 # ══════════════════════════════════════════════════════════════════════════════
+
+
+async def fetch_and_store_forecast():
+    """Fetch 5-day/3-hour forecast from OpenWeatherMap and store in DB."""
+    cfg = load_weather_config()
+    if not cfg.get("api_key") or (not cfg.get("city") and not (cfg.get("lat") and cfg.get("lon"))):
+        return None
+
+    base = "https://api.openweathermap.org/data/2.5/forecast"
+    params = {"appid": cfg["api_key"], "units": "metric"}
+    if cfg.get("lat") and cfg.get("lon"):
+        params["lat"] = cfg["lat"]
+        params["lon"] = cfg["lon"]
+    else:
+        params["q"] = cfg["city"]
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(base, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+
+        conn = get_db()
+        # Clear old forecasts and insert fresh ones
+        conn.execute("DELETE FROM weather_forecast")
+        city_name = data.get("city", {}).get("name", cfg.get("city", ""))
+        for item in data.get("list", []):
+            conn.execute(
+                """INSERT INTO weather_forecast 
+                   (forecast_time, temperature, humidity, feels_like, pressure, wind_speed, wind_deg, rain_3h, clouds, description, icon, city)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (item["dt_txt"],
+                 item["main"]["temp"], item["main"]["humidity"],
+                 item["main"]["feels_like"], item["main"]["pressure"],
+                 item["wind"]["speed"], item["wind"].get("deg", 0),
+                 item.get("rain", {}).get("3h", 0),
+                 item["clouds"]["all"],
+                 item["weather"][0]["description"],
+                 item["weather"][0]["icon"],
+                 city_name)
+            )
+        conn.commit()
+        conn.close()
+        log.info(f"[Forecast] Stored {len(data.get('list', []))} forecast entries for {city_name}")
+        return len(data.get("list", []))
+    except Exception as e:
+        log.warning(f"[Forecast] Fetch failed: {e}")
+        return None
+
+@app.get("/api/weather/forecast")
+def get_weather_forecast():
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM weather_forecast ORDER BY forecast_time ASC"
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+@app.post("/api/weather/forecast/refresh")
+async def refresh_forecast():
+    count = await fetch_and_store_forecast()
+    if count is None:
+        raise HTTPException(500, "Failed to fetch forecast")
+    return {"status": "ok", "entries": count}
+
+@app.get("/api/readings/aggregated")
+def get_aggregated_readings(hours: int = 24, device_id: str = None):
+    conn = get_db()
+    since = (datetime.utcnow() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
+    q = """SELECT r.device_id,
+                  strftime('%Y-%m-%d %H:00:00', r.recorded_at) as hour_bucket,
+                  ROUND(AVG(r.temperature),2) as temperature,
+                  ROUND(AVG(r.humidity),2) as humidity,
+                  COUNT(*) as sample_count,
+                  d.name as device_name
+           FROM readings r LEFT JOIN devices d ON r.device_id = d.id
+           WHERE r.recorded_at >= ?"""
+    params = [since]
+    if device_id:
+        q += " AND r.device_id = ?"
+        params.append(device_id)
+    q += " GROUP BY r.device_id, hour_bucket ORDER BY hour_bucket DESC"
+    rows = conn.execute(q, params).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
 @app.get("/api/health")
 def health():
     conn = get_db()
