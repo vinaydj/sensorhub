@@ -509,6 +509,18 @@ def get_air_devices():
     conn.close()
     return [dict(r) for r in rows]
 
+@app.delete("/api/air/devices/{device_id}")
+def delete_air_device(device_id: str):
+    """Remove an air device and all its readings."""
+    conn = get_db()
+    conn.execute("DELETE FROM air_readings WHERE device_id=?", (device_id,))
+    cur = conn.execute("DELETE FROM air_devices WHERE device_id=?", (device_id,))
+    conn.commit()
+    conn.close()
+    if cur.rowcount == 0:
+        raise HTTPException(404, "Device not found")
+    return {"status": "deleted"}
+
 @app.delete("/api/air/readings")
 def delete_air_readings(device_id: str = None):
     conn = get_db()
@@ -662,6 +674,19 @@ def get_pir_devices():
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+@app.delete("/api/pir/devices/{device_id}")
+def delete_pir_device(device_id: str):
+    """Remove a PIR device and all its sessions and events."""
+    conn = get_db()
+    conn.execute("DELETE FROM pir_sessions WHERE device_id=?", (device_id,))
+    conn.execute("DELETE FROM pir_events WHERE device_id=?", (device_id,))
+    cur = conn.execute("DELETE FROM pir_devices WHERE device_id=?", (device_id,))
+    conn.commit()
+    conn.close()
+    if cur.rowcount == 0:
+        raise HTTPException(404, "Device not found")
+    return {"status": "deleted"}
 
 @app.delete("/api/pir/sessions")
 def delete_pir_sessions(device_id: str = None):
