@@ -5,7 +5,7 @@ Adds new tables: air_devices, air_readings, pir_devices, pir_events, pir_session
 """
 import asyncio, json, logging, sqlite3, time
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -354,6 +354,64 @@ async def poll_one_pir(device_id):
     _PIR_STATE[device_id] = motion
     conn.close()
 
+# ── OCCUPANCY MINUTE LOG (v6): one CSV row per PIR device per minute ──────
+OCC_LOG_DIR = DB_PATH.parent / 'logs'
+OCC_LOG_HEADER = 'date,time,device_id,device_name,occupied,occupied_seconds,motion_now,online\n'
+
+def _utc(ts):
+    return datetime.strptime(ts, '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc).timestamp()
+
+def _occ_rows(t0, t1):
+    """Occupied seconds per PIR device in [t0, t1) (unix seconds), from sessions."""
+    f = lambda t: datetime.fromtimestamp(t, timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+    conn = get_db()
+    devs = conn.execute('SELECT device_id, device_name, last_seen FROM pir_devices ORDER BY device_id').fetchall()
+    sess = conn.execute(
+        'SELECT device_id, start_time, end_time FROM pir_sessions WHERE start_time < ? AND (end_time IS NULL OR end_time > ?)',
+        (f(t1), f(t0))).fetchall()
+    conn.close()
+    rows = []
+    for d in devs:
+        did = d['device_id']
+        secs = 0.0
+        for s_ in sess:
+            if s_['device_id'] != did:
+                continue
+            a = max(_utc(s_['start_time']), t0)
+            b = min(_utc(s_['end_time']) if s_['end_time'] else t1, t1)
+            secs += max(0.0, b - a)
+        secs = int(round(min(secs, t1 - t0)))
+        try:
+            online = (t1 - _utc(d['last_seen'])) < 30
+        except Exception:
+            online = False
+        rows.append((did, d['device_name'] or did, secs, _PIR_STATE.get(did), online))
+    return rows
+
+def _write_occ_minute(t0, t1):
+    lt = datetime.fromtimestamp(t0)  # Pi local time (Europe/Stockholm)
+    OCC_LOG_DIR.mkdir(parents=True, exist_ok=True)
+    path = OCC_LOG_DIR / f"occupancy_{lt.strftime('%Y-%m-%d')}.csv"
+    new = not path.exists()
+    with open(path, 'a', newline='') as fh:
+        if new:
+            fh.write(OCC_LOG_HEADER)
+        for did, name, secs, motion, online in _occ_rows(t0, t1):
+            nm = '"' + str(name).replace('"', '""') + '"'
+            mo = '' if motion is None else ('yes' if motion else 'no')
+            fh.write(f"{lt.strftime('%Y-%m-%d')},{lt.strftime('%H:%M')},{did},{nm},{'yes' if secs > 0 else 'no'},{secs},{mo},{'yes' if online else 'no'}\n")
+
+async def log_occupancy_minutes():
+    log.info(f"Occupancy minute log -> {OCC_LOG_DIR}")
+    while True:
+        now = time.time()
+        await asyncio.sleep(60 - (now % 60) + 1)   # just after each full minute
+        t1 = int(time.time() // 60 * 60)
+        try:
+            await asyncio.to_thread(_write_occ_minute, t1 - 60, t1)
+        except Exception as e:
+            log.warning(f"[occupancy log] {e}")
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  APP LIFESPAN
 # ══════════════════════════════════════════════════════════════════════════════
@@ -365,11 +423,13 @@ async def lifespan(app):
     weather_task = asyncio.create_task(poll_weather())
     air_task = asyncio.create_task(poll_air_devices())
     pir_task = asyncio.create_task(poll_pir_devices())
+    occlog_task = asyncio.create_task(log_occupancy_minutes())
     yield
     task.cancel()
     weather_task.cancel()
     air_task.cancel()
     pir_task.cancel()
+    occlog_task.cancel()
     try:
         await task
     except asyncio.CancelledError:
@@ -847,6 +907,30 @@ def get_pir_events(device_id: str = None, hours: int = 24, limit: int = 500):
         ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+@app.get("/api/pir/logs")
+def list_occupancy_logs():
+    """Per-minute occupancy CSV files, newest first."""
+    if not OCC_LOG_DIR.exists():
+        return []
+    return [{"date": p.stem.replace('occupancy_', ''), "size": p.stat().st_size,
+             "url": f"/api/pir/log/{p.stem.replace('occupancy_', '')}.csv"}
+            for p in sorted(OCC_LOG_DIR.glob('occupancy_*.csv'), reverse=True)]
+
+@app.get("/api/pir/log/{day}.csv")
+def get_occupancy_log(day: str):
+    """Download one day's minute log: 'today' or YYYY-MM-DD."""
+    from fastapi.responses import FileResponse
+    if day == 'today':
+        day = datetime.now().strftime('%Y-%m-%d')
+    try:
+        datetime.strptime(day, '%Y-%m-%d')
+    except ValueError:
+        raise HTTPException(400, 'Use today or YYYY-MM-DD')
+    path = OCC_LOG_DIR / f'occupancy_{day}.csv'
+    if not path.exists():
+        raise HTTPException(404, f'No minute log for {day} yet (first row appears 1 minute after start)')
+    return FileResponse(path, media_type='text/csv', filename=path.name)
 
 @app.get("/api/pir/devices")
 def get_pir_devices():
