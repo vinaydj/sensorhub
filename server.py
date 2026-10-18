@@ -289,6 +289,71 @@ async def poll_one_air(device_id):
         (device_id, temp, hum, eco2, tvoc, warm))
     conn.close()
 
+# ── PIR POLLING (v5): boards that serve GET /api/sensors/all ─────────────
+PIR_POLL_INTERVAL = 2
+PIR_POLL_TIMEOUT = 2
+_PIR_LAST_PUSH = {}
+_PIR_STATE = {}
+
+def _pir_motion(data):
+    for k in ('motion_detected', 'motion', 'occupied'):
+        if k in data:
+            v = data[k]
+            if isinstance(v, str):
+                return v.strip().lower() in ('1', 'true', 'yes', 'on', 'detected')
+            return bool(v)
+    return None
+
+async def poll_pir_devices():
+    log.info(f"PIR polling started (every {PIR_POLL_INTERVAL}s)")
+    while True:
+        try:
+            conn = get_db()
+            ids = [r['device_id'] for r in conn.execute('SELECT device_id FROM pir_devices').fetchall()]
+            conn.close()
+            now = time.time()
+            ids = [i for i in ids if now - _PIR_LAST_PUSH.get(i, 0) > 15]
+            if ids:
+                await asyncio.gather(*(poll_one_pir(i) for i in ids), return_exceptions=True)
+        except Exception as e:
+            log.warning(f"[pir] poll loop error: {e}")
+        await asyncio.sleep(PIR_POLL_INTERVAL)
+
+async def poll_one_pir(device_id):
+    url = f"http://{_air_host(device_id)}/api/sensors/all"
+    try:
+        async with httpx.AsyncClient(timeout=PIR_POLL_TIMEOUT) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            data = resp.json()
+    except Exception as e:
+        log.debug(f"[pir:{device_id}] poll failed ({url}): {e}")
+        return
+    motion = _pir_motion(data) if isinstance(data, dict) else None
+    if motion is None:
+        log.warning(f"[pir:{device_id}] no motion field in {url}")
+        return
+    conn = get_db()
+    conn.execute("UPDATE pir_devices SET last_seen=datetime('now') WHERE device_id=?", (device_id,))
+    open_session = conn.execute(
+        'SELECT id FROM pir_sessions WHERE device_id=? AND end_time IS NULL ORDER BY start_time DESC LIMIT 1',
+        (device_id,)).fetchone()
+    prev = _PIR_STATE.get(device_id)
+    if prev is None:
+        prev = open_session is not None
+    if motion != prev:
+        # store only changes: one event per start/stop, not one per poll
+        conn.execute('INSERT INTO pir_events (device_id, motion_detected) VALUES (?,?)', (device_id, int(motion)))
+        if motion and not open_session:
+            conn.execute("INSERT INTO pir_sessions (device_id, start_time, source) VALUES (?,datetime('now'),'poll')", (device_id,))
+        elif not motion and open_session:
+            conn.execute(
+                "UPDATE pir_sessions SET end_time=datetime('now'), "
+                "duration_seconds=CAST((julianday('now') - julianday(start_time)) * 86400 AS INTEGER) WHERE id=?",
+                (open_session['id'],))
+    _PIR_STATE[device_id] = motion
+    conn.close()
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  APP LIFESPAN
 # ══════════════════════════════════════════════════════════════════════════════
@@ -299,10 +364,12 @@ async def lifespan(app):
     task = asyncio.create_task(poll_sensors())
     weather_task = asyncio.create_task(poll_weather())
     air_task = asyncio.create_task(poll_air_devices())
+    pir_task = asyncio.create_task(poll_pir_devices())
     yield
     task.cancel()
     weather_task.cancel()
     air_task.cancel()
+    pir_task.cancel()
     try:
         await task
     except asyncio.CancelledError:
@@ -659,6 +726,8 @@ class PIREvent(BaseModel):
 
 @app.post("/api/pir/ingest")
 def ingest_pir(r: PIREvent):
+    _PIR_LAST_PUSH[r.device_id] = time.time()
+    _PIR_STATE[r.device_id] = bool(r.motion_detected)
     conn = get_db()
     conn.execute(
         """INSERT INTO pir_devices (device_id, device_name, last_seen)

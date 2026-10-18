@@ -140,11 +140,11 @@
         </div>
         <div id="add-device-form" class="hidden dm-form">
             <div class="grid grid-cols-1 sm:grid-cols-5 gap-3 items-end">
-                <div class="sm:col-span-2"><label for="new-device-id">Device ID</label><input type="text" id="new-device-id" placeholder="e.g. esp32_pir_01" class="font-mono"></div>
+                <div class="sm:col-span-2"><label for="new-device-id">Device ID (hostname or IP)</label><input type="text" id="new-device-id" placeholder="e.g. pirsensor-1" class="font-mono"></div>
                 <div class="sm:col-span-2"><label for="new-device-name">Device name</label><input type="text" id="new-device-name" placeholder="e.g. Office" onkeydown="if(event.key==='Enter') addDevice()"></div>
                 <div class="sm:col-span-1"><button type="button" onclick="addDevice()" class="dm-btn dm-btn-primary w-full justify-center" style="padding:.55rem .8rem"><i class="fas fa-plug"></i>Add</button></div>
             </div>
-            <p class="dm-hint"><i class="fas fa-info-circle mr-1"></i>Device ID must match what the ESP32 sends to /api/pir/ingest. Name is a friendly label.</p>
+            <p class="dm-hint"><i class="fas fa-info-circle mr-1"></i>Device ID = the board's hostname without .local (e.g. pirsensor-1) or its IP. The server checks /api/sensors/all every 2 s. Boards that POST to /api/pir/ingest work too.</p>
         </div>
         <div class="dm-body">
             <div id="device-tabs" class="hidden" aria-hidden="true"></div>
